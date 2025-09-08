@@ -1,0 +1,17 @@
+# Bỏ qua các thư mục build
+bin/
+obj/
+node_modules/
+.expo/
+
+# Bỏ qua các file log và hệ thống
+*.log
+*.env
+
+# Bỏ qua file media lớn
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.zip
+*.rar
