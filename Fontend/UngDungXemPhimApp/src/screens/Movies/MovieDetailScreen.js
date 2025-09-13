@@ -265,12 +265,14 @@ export default function MovieDetailScreen({ route, navigation }) {
             style={styles.movieImage}
           />
         )}
-        {renderTrailer()}
+        {showTrailer && renderTrailer()}
         <Text style={styles.movieTitle}>{movie.movieTitle || "Không có tiêu đề"}</Text>
         <Text style={styles.movieDescription}>{movie.movieDescription || "Không có mô tả"}</Text>
-        <Text style={styles.movieInfo}>
-          Thể loại: {(movie.movieGenre || []).join(", ") || "Không xác định"} | Diễn viên: {movie.movieActors || "Không xác định"} | Đạo diễn: {movie.movieDirector || "Không xác định"} | Quốc gia: {movie.movieCountry || "Không xác định"}
-        </Text>
+        <Text style={styles.movieInfo}>Loại phim: {movie.movieType || "Không xác định"}</Text>
+        <Text style={styles.movieInfo}>Diễn viên: {movie.movieActors || "Không có thông tin"}</Text>
+        <Text style={styles.movieInfo}>Đạo diễn: {movie.movieDirector || "Không có thông tin"}</Text>
+        <Text style={styles.movieInfo}>Quốc gia: {movie.movieCountry || "Không có thông tin"}</Text>
+        <Text style={styles.movieInfo}>Thể loại: {movie.movieGenre}</Text>
         <View style={styles.ratingContainer}>
           <Text style={styles.ratingText}>Đánh giá: {rating ? rating.toFixed(1) : 0} ★</Text>
           <View style={styles.ratingButtons}>
