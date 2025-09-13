@@ -5,52 +5,49 @@ using UngDungXemPhim.Api.Models;
 
 namespace UngDungXemPhim.Api.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class GenresController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly AppDbContext _db;
 
-        public GenresController(AppDbContext context)
+        public GenresController(AppDbContext db)
         {
-            _context = context;
+            _db = db;
         }
 
-        // DTO để tránh vòng lặp và chỉ lấy dữ liệu cần thiết
-        public class GenreDto
-        {
-            public int GenreID { get; set; }
-            public string GenreName { get; set; } = string.Empty;
-            // Tùy chọn: Thêm danh sách MovieID nếu cần
-            // public List<int> MovieIds { get; set; } = new List<int>();
-        }
-
-        // GET: api/Genres
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<GenreDto>>> GetGenres()
+        public async Task<IActionResult> GetAll()
         {
-            try
-            {
-                var genres = await _context.Genres
-                    .Select(g => new GenreDto
-                    {
-                        GenreID = g.GenreID,
-                        GenreName = g.GenreName
-                        // Tùy chọn: Nếu cần MovieIDs
-                        // MovieIds = g.MovieGenres?.Select(mg => mg.MovieID).ToList() ?? new List<int>()
-                    })
-                    .ToListAsync();
+            var genres = await _db.Genres
+                .OrderBy(g => g.GenreName)
+                .ToListAsync();
 
-                if (genres == null || !genres.Any())
-                {
-                    return NotFound("No genres found.");
-                }
-                return Ok(genres);
-            }
-            catch (Exception ex)
+            var result = genres.Select(g => new
             {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
+                genreID = g.GenreID,
+                genreName = g.GenreName
+            });
+
+            return Ok(result);
+        }
+
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> Get(int id)
+        {
+            var genre = await _db.Genres
+                .FirstOrDefaultAsync(g => g.GenreID == id);
+
+            if (genre == null)
+            {
+                return NotFound("Không tìm thấy thể loại.");
             }
+
+            return Ok(new
+            {
+                genreID = genre.GenreID,
+                genreName = genre.GenreName
+            });
         }
     }
 }

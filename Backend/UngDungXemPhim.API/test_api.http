@@ -1,0 +1,102 @@
+### Test API - Ứng Dụng Xem Phim
+
+### 1. Đăng ký người dùng mới
+POST http://localhost:5016/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Nguyễn Văn A",
+  "phone": "0987654321",
+  "email": "test@example.com",
+  "password": "password123",
+  "birthday": "2000-01-01",
+  "gender": "Nam",
+  "location": "Hà Nội"
+}
+
+### 2. Đăng nhập
+POST http://localhost:5016/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### 3. Lấy danh sách phim
+GET http://localhost:5016/api/movies
+
+### 4. Lấy thông tin phim theo ID
+GET http://localhost:5016/api/movies/1
+
+### 5. Lấy danh sách tập phim
+GET http://localhost:5016/api/movies/1/episodes
+
+### 6. Lấy bình luận theo phim
+GET http://localhost:5016/api/comments/movie/1
+
+### 7. Thêm bình luận (cần token)
+POST http://localhost:5016/api/comments/movie/1
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "text": "Phim hay quá!",
+  "rating": 5
+}
+
+### 8. Lấy đánh giá theo phim
+GET http://localhost:5016/api/ratings/movie/1
+
+### 9. Thêm đánh giá (cần token)
+POST http://localhost:5016/api/ratings/movie/1
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "value": 5
+}
+
+### 10. Lấy thông tin profile (cần token)
+GET http://localhost:5016/api/users/profile
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### 11. Cập nhật profile (cần token)
+PUT http://localhost:5016/api/users/profile
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "name": "Nguyễn Văn B",
+  "phone": "0987654322"
+}
+
+### 12. Đổi mật khẩu (cần token)
+POST http://localhost:5016/api/users/change-password
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "oldPassword": "password123",
+  "newPassword": "newpassword123"
+}
+
+### 13. Lấy danh sách thể loại
+GET http://localhost:5016/api/genres
+
+### 14. Lấy lịch sử xem phim (cần token)
+GET http://localhost:5016/api/users/WatchHistory
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### 15. Thêm lịch sử xem phim (cần token)
+POST http://localhost:5016/api/users/WatchHistory
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "episodeID": 1
+}
+
+### 16. Xóa lịch sử xem phim (cần token)
+DELETE http://localhost:5016/api/users/WatchHistory/1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE

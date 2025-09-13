@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using UngDungXemPhim.Api.Data;
 using UngDungXemPhim.Api.Models;
 using Microsoft.AspNetCore.Authorization;
+using UngDungXemPhim.Api.Services;
 
 namespace UngDungXemPhim.Api.Controllers
 {
@@ -11,7 +12,13 @@ namespace UngDungXemPhim.Api.Controllers
     public class MoviesController : ControllerBase
     {
         private readonly AppDbContext _db;
-        public MoviesController(AppDbContext db) { _db = db; }
+        private readonly IJwtService _jwtService;
+        
+        public MoviesController(AppDbContext db, IJwtService jwtService) 
+        { 
+            _db = db; 
+            _jwtService = jwtService;
+        }
 
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] string? filter = null)
@@ -34,7 +41,6 @@ namespace UngDungXemPhim.Api.Controllers
                 }
                 else
                 {
-                    // Filter by genre name (e.g., "phim kinh dị", "hành động")
                     query = query.Where(m => m.MovieGenres != null && 
                         m.MovieGenres.Any(mg => mg.Genre != null && 
                         mg.Genre.GenreName.ToLower().Contains(filter.ToLower())));
@@ -75,7 +81,7 @@ namespace UngDungXemPhim.Api.Controllers
                 MovieTitle = m.Title,
                 MovieDescription = m.Description,
                 ImageUrl = m.ImagePath,
-                VideoPath = m.Episodes?.FirstOrDefault()?.VideoPath ?? null,  // Nếu phim lẻ, lấy từ episode đầu hoặc null
+                VideoPath = m.Episodes?.FirstOrDefault()?.VideoPath ?? null,
                 MovieType = m.Type,
                 MovieActors = m.Actors,
                 MovieDirector = m.Directors,
@@ -96,104 +102,216 @@ namespace UngDungXemPhim.Api.Controllers
         }
 
         [HttpGet("{id:int}/Comments")]
-        public async Task<IActionResult> GetComments(int id)
+        public async Task<IActionResult> GetComments(int id, [FromQuery] int? episodeNumber = null)
         {
-            var comments = await _db.Comments
+            var query = _db.Comments
                 .Include(c => c.User)
                 .Include(c => c.Episode)
-                .Where(c => c.Episode != null && c.Episode.MovieID == id)
-                .OrderByDescending(c => c.CommentDate)
-                .ToListAsync();
-            var result = comments.Select(c => new {
+                .ThenInclude(e => e.Movie)
+                .Where(c => c.Episode != null && c.Episode.MovieID == id);
+
+            if (episodeNumber.HasValue)
+            {
+                query = query.Where(c => c.Episode.EpisodeNumber == episodeNumber.Value);
+            }
+
+            var comments = await query.OrderByDescending(c => c.CommentDate).ToListAsync();
+            var result = comments.Select(c => new
+            {
                 id = c.CommentID,
                 userName = c.User?.FullName ?? "Ẩn danh",
                 text = c.CommentText,
                 rating = c.Rating,
-                date = c.CommentDate
+                date = c.CommentDate,
+                episodeNumber = c.Episode?.EpisodeNumber,
+                episodeTitle = c.Episode?.Title
             });
             return Ok(new { comments = result });
         }
+        [HttpDelete("{id:int}/Comments/{commentId:int}")]
+        [Authorize]
+        public async Task<IActionResult> DeleteComment(int id, int commentId)
+        {            
+            var userId = _jwtService.GetUserIdFromToken(User);
+            if (userId == null)
+            {
+                return Unauthorized("Người dùng không được xác thực.");
+            }
 
+            var comment = await _db.Comments
+                .Include(c => c.Episode)
+                .FirstOrDefaultAsync(c => c.CommentID == commentId && c.UserID == userId && c.Episode != null && c.Episode.MovieID == id);
+
+            if (comment == null)
+            {
+                return NotFound("Không tìm thấy bình luận hoặc bạn không có quyền xóa bình luận này.");
+            }
+
+            _db.Comments.Remove(comment);
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Xóa bình luận thành công." });
+        }
         [HttpPost("{id:int}/Comments")]
         [Authorize]
-        public async Task<IActionResult> PostComment(int id, [FromBody] CommentDto body)
+        public async Task<IActionResult> PostComment(int id, [FromBody] CommentDto body, [FromQuery] int? episodeNumber = null)
         {
-            if (string.IsNullOrWhiteSpace(body.Text) && !body.Rating.HasValue)
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (string.IsNullOrWhiteSpace(body.text) && !body.rating.HasValue)
             {
                 return BadRequest("Nội dung bình luận hoặc đánh giá phải được cung cấp.");
             }
 
-            int userId = int.Parse(User.FindFirst("sub")?.Value ?? "0");
-            var episode = await _db.Episodes.FirstOrDefaultAsync(e => e.MovieID == id);
-            if (episode == null) return BadRequest("Không tìm thấy tập phim cho phim này.");
+            // Debug: Kiểm tra thông tin User
+            Console.WriteLine($"User Identity: {User.Identity?.Name}");
+            Console.WriteLine($"User IsAuthenticated: {User.Identity?.IsAuthenticated}");
+            Console.WriteLine($"User Claims Count: {User.Claims.Count()}");
+            
+            foreach (var claim in User.Claims)
+            {
+                Console.WriteLine($"Claim: {claim.Type} = {claim.Value}");
+            }
+
+            var userId = _jwtService.GetUserIdFromToken(User);
+            Console.WriteLine($"Extracted UserId: {userId}");
+            
+            if (userId == null || !await _db.Users.AnyAsync(u => u.UserID == userId))
+            {
+                return Unauthorized("Người dùng không tồn tại hoặc không được xác thực.");
+            }
+
+            var episode = await _db.Episodes
+                .Where(e => e.MovieID == id && (!episodeNumber.HasValue || e.EpisodeNumber == episodeNumber.Value))
+                .FirstOrDefaultAsync();
+
+            if (episode == null)
+            {
+                if (!episodeNumber.HasValue)
+                {
+                    episode = await _db.Episodes
+                        .Where(e => e.MovieID == id)
+                        .FirstOrDefaultAsync();
+                }
+                if (episode == null)
+                {
+                    return BadRequest("Không tìm thấy tập phim cho phim này.");
+                }
+            }
 
             var comment = new Comment
             {
-                UserID = userId,
+                UserID = userId.Value,
                 EpisodeID = episode.EpisodeID,
-                CommentText = string.IsNullOrWhiteSpace(body.Text) ? null : body.Text,
-                Rating = body.Rating,
+                CommentText = string.IsNullOrWhiteSpace(body.text) ? null : body.text,
+                Rating = body.rating,
                 CommentDate = DateTime.Now
             };
+
             _db.Comments.Add(comment);
             await _db.SaveChangesAsync();
-            return Ok(comment);
+
+            return Ok(new
+            {
+                id = comment.CommentID,
+                userId = comment.UserID,
+                text = comment.CommentText,
+                rating = comment.Rating,
+                date = comment.CommentDate,
+                episodeNumber = episode.EpisodeNumber,
+                episodeTitle = episode.Title
+            });
         }
 
         [HttpGet("{id:int}/Ratings")]
-        public async Task<IActionResult> GetRatings(int id)
+        public async Task<IActionResult> GetRatings(int id, [FromQuery] int? episodeNumber = null)
         {
-            var ratings = await _db.Comments
+            var query = _db.Comments
                 .Include(c => c.Episode)
-                .Where(c => c.Episode != null && c.Episode.MovieID == id && c.Rating > 0)
-                .Select(c => c.Rating)
-                .ToListAsync();
+                .Where(c => c.Episode != null && c.Episode.MovieID == id && c.Rating > 0);
+
+            if (episodeNumber.HasValue)
+            {
+                query = query.Where(c => c.Episode.EpisodeNumber == episodeNumber.Value);
+            }
+
+            var ratings = await query.Select(c => c.Rating).ToListAsync();
             var avg = ratings.Count > 0 ? ratings.Average() : 0;
-            return Ok(new { rating = avg });
+            return Ok(new { rating = avg, count = ratings.Count });
         }
 
         [HttpPost("{id:int}/Ratings")]
         [Authorize]
-        public async Task<IActionResult> PostRating(int id, [FromBody] RatingDto body)
+        public async Task<IActionResult> PostRating(int id, [FromBody] RatingDto body, [FromQuery] int? episodeNumber = null)
         {
-            if (body.Value < 1 || body.Value > 5)
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (body.value < 1 || body.value > 5)
             {
                 return BadRequest("Đánh giá phải từ 1 đến 5 sao.");
             }
 
-            int userId = int.Parse(User.FindFirst("sub")?.Value ?? "0");
-            var episode = await _db.Episodes.FirstOrDefaultAsync(e => e.MovieID == id);
-            if (episode == null) return BadRequest("Không tìm thấy tập phim cho phim này.");
+            var userId = _jwtService.GetUserIdFromToken(User);
+            if (userId == null || !await _db.Users.AnyAsync(u => u.UserID == userId))
+            {
+                return Unauthorized("Người dùng không tồn tại hoặc không được xác thực.");
+            }
 
-            var comment = await _db.Comments.FirstOrDefaultAsync(c => c.EpisodeID == episode.EpisodeID && c.UserID == userId);
+            var episode = await _db.Episodes
+                .Where(e => e.MovieID == id && (!episodeNumber.HasValue || e.EpisodeNumber == episodeNumber.Value))
+                .FirstOrDefaultAsync();
+
+            if (episode == null)
+            {
+                if (!episodeNumber.HasValue)
+                {
+                    episode = await _db.Episodes
+                        .Where(e => e.MovieID == id)
+                        .FirstOrDefaultAsync();
+                }
+                if (episode == null)
+                {
+                    return BadRequest("Không tìm thấy tập phim cho phim này.");
+                }
+            }
+
+            var comment = await _db.Comments
+                .FirstOrDefaultAsync(c => c.EpisodeID == episode.EpisodeID && c.UserID == userId);
+
             if (comment == null)
             {
                 comment = new Comment
                 {
-                    UserID = userId,
+                    UserID = userId.Value,
                     EpisodeID = episode.EpisodeID,
-                    Rating = body.Value,
+                    Rating = body.value,
                     CommentDate = DateTime.Now
                 };
                 _db.Comments.Add(comment);
             }
             else
             {
-                comment.Rating = body.Value;
+                comment.Rating = body.value;
+                comment.CommentDate = DateTime.Now;
             }
+
             await _db.SaveChangesAsync();
-            return Ok(comment);
+
+            return Ok(new
+            {
+                id = comment.CommentID,
+                userId = comment.UserID,
+                rating = comment.Rating,
+                date = comment.CommentDate,
+                episodeNumber = episode.EpisodeNumber,
+                episodeTitle = episode.Title
+            });
         }
-    }
-
-    public class CommentDto
-    {
-        public string? Text { get; set; }
-        public int? Rating { get; set; }
-    }
-
-    public class RatingDto
-    {
-        public int Value { get; set; }
     }
 }

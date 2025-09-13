@@ -7,6 +7,7 @@ using System.Text;
 using UngDungXemPhim.Api.Data;
 using UngDungXemPhim.Api.Models;
 using System.Security.Cryptography;
+using UngDungXemPhim.Api.Services;
 
 namespace UngDungXemPhim.Api.Controllers
 {
@@ -16,10 +17,13 @@ namespace UngDungXemPhim.Api.Controllers
     {
         private readonly AppDbContext _db;
         private readonly IConfiguration _config;
-        public AuthController(AppDbContext db, IConfiguration config)
+        private readonly IJwtService _jwtService;
+        
+        public AuthController(AppDbContext db, IConfiguration config, IJwtService jwtService)
         {
             _db = db;
             _config = config;
+            _jwtService = jwtService;
         }
 
         [HttpPost("register")]
@@ -92,7 +96,7 @@ namespace UngDungXemPhim.Api.Controllers
                 }
             }
             // Nếu hết hạn thì tạo token mới
-            var token = GenerateJwtToken(user);
+            var token = _jwtService.GenerateToken(user);
             user.Account.Token = token;
             await _db.SaveChangesAsync();
             return Ok(new
@@ -121,25 +125,6 @@ namespace UngDungXemPhim.Api.Controllers
             return HashPassword(password) == hash;
         }
 
-        private string GenerateJwtToken(User user)
-        {
-            var claims = new[]
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, user.UserID.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email),
-                new Claim("role", "user")
-            };
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? "supersecretkey"));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"] ?? "localhost",
-                audience: _config["Jwt:Audience"] ?? "localhost",
-                claims: claims,
-                expires: DateTime.Now.AddDays(7),
-                signingCredentials: creds
-            );
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
     }
 
     public class RegisterDto

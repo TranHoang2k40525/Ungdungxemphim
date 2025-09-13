@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useContext } from "react";
-import { View, Text, Image, TouchableOpacity, FlatList, TextInput, Alert, RefreshControl, StyleSheet, ActivityIndicator, Dimensions } from "react-native";
+import React, { useState, useEffect, useContext, useRef } from "react";
+import { View, Text, Image, TouchableOpacity, FlatList, TextInput, Alert, RefreshControl, StyleSheet, ActivityIndicator, Dimensions, ScrollView } from "react-native";
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { getMovieDetail, getEpisodes, postComment, getComments, postRating, getRatings, BASE_URL } from "../../api/API";
+import { getMovieDetail, getEpisodes, postComment, getComments, postRating, getRatings, deleteComment, BASE_URL } from "../../api/API";
 import { UserContext } from "../../contexts/UserContext";
 
 export default function MovieDetailScreen({ route, navigation }) {
@@ -21,6 +21,11 @@ export default function MovieDetailScreen({ route, navigation }) {
   const [screenDimensions, setScreenDimensions] = useState(Dimensions.get('window'));
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [commentPage, setCommentPage] = useState(1);
+  const [hasMoreComments, setHasMoreComments] = useState(true);
+  const [showDeleteButton, setShowDeleteButton] = useState({});
+  const scrollViewRef = useRef(null);
+  const existingCommentIds = useRef(new Set());
 
   useEffect(() => {
     const handleDimensionChange = ({ window }) => {
@@ -52,6 +57,7 @@ export default function MovieDetailScreen({ route, navigation }) {
       const initialVideoPath = movieRes.data?.videoPath || "";
       setVideoUrl(initialVideoPath);
       console.log("Phản hồi getMovieDetail:", movieRes.data);
+      console.log("Đường dẫn video ban đầu:", `${BASE_URL.replace('/api', '')}/Assets/Video/${initialVideoPath}`);
 
       const epRes = await getEpisodes(movieId);
       console.log("Phản hồi getEpisodes:", epRes.data);
@@ -60,6 +66,7 @@ export default function MovieDetailScreen({ route, navigation }) {
         setSelectedEpisode(epRes.data.episodes[0]);
         if (!initialVideoPath) {
           setVideoUrl(epRes.data.episodes[0]?.videoPath || "");
+          console.log("Đường dẫn video tập phim:", `${BASE_URL.replace('/api', '')}/Assets/Video/${epRes.data.episodes[0]?.videoPath}`);
         }
       } else if (!initialVideoPath) {
         setVideoUrl("");
@@ -73,14 +80,27 @@ export default function MovieDetailScreen({ route, navigation }) {
       setLoading(false);
     }
 
-    await fetchComments();
+    await fetchComments(true);
     await fetchRatings();
   };
 
-  const fetchComments = async () => {
+  const fetchComments = async (reset = false) => {
     try {
-      const res = await getComments(movieId);
-      setComments(res.data.comments || []);
+      const page = reset ? 1 : commentPage;
+      const res = await getComments(movieId, page, 10); // pageSize=10
+      const newComments = res.data.comments || [];
+      console.log("New comments fetched:", newComments);
+      if (reset) {
+        existingCommentIds.current = new Set(newComments.map(c => c.id));
+        setComments(newComments);
+        setShowDeleteButton({});
+      } else {
+        const filteredNewComments = newComments.filter(c => !existingCommentIds.current.has(c.id));
+        filteredNewComments.forEach(c => existingCommentIds.current.add(c.id));
+        setComments(prevComments => [...prevComments, ...filteredNewComments]);
+      }
+      setHasMoreComments(newComments.length === 10);
+      setCommentPage(page + 1);
     } catch (err) {
       console.log("Lỗi lấy bình luận:", err, err.response?.data);
       Alert.alert("Lỗi lấy bình luận", err.response?.data?.message || "Lỗi hệ thống");
@@ -115,6 +135,7 @@ export default function MovieDetailScreen({ route, navigation }) {
       Alert.alert("Lỗi", "Không tìm thấy nguồn video cho phim này. Vui lòng kiểm tra lại dữ liệu hoặc liên hệ hỗ trợ.");
       return;
     }
+    console.log("Đường dẫn video khi nhấn xem:", `${BASE_URL.replace('/api', '')}/Assets/Video/${videoUrl}`);
     setShowTrailer(true);
   };
 
@@ -129,47 +150,82 @@ export default function MovieDetailScreen({ route, navigation }) {
     setSelectedEpisode(ep);
     setVideoUrl(ep.videoPath || "");
     setShowTrailer(true);
+    console.log("Đường dẫn video tập được chọn:", `${BASE_URL.replace('/api', '')}/Assets/Video/${ep.videoPath}`);
   };
 
   const handleComment = async () => {
-    if (!user) {
+    if (!user || !token) {
       Alert.alert("Thông báo", "Bạn cần đăng nhập để bình luận!", [
         { text: "Hủy", style: "cancel" },
         { text: "Đăng nhập", onPress: () => navigation.navigate("Login") }
       ]);
       return;
     }
-    if (!commentText.trim() && rating === 0) {
-      Alert.alert("Thông báo", "Nội dung bình luận hoặc đánh giá phải được cung cấp!");
+    if (!commentText && rating === 0) {
+      Alert.alert("Lỗi", "Vui lòng nhập nội dung bình luận hoặc chọn đánh giá!");
       return;
     }
     try {
-      await postComment(movieId, { text: commentText, rating: rating || null }, token);
+      if (commentText) {
+        console.log("Gửi bình luận với dữ liệu:", { text: commentText });
+        await postComment(movieId, commentText, token);
+      }
+      if (rating > 0) {
+        console.log("Gửi đánh giá với dữ liệu:", { value: rating });
+        await postRating(movieId, rating, token);
+      }
       setCommentText("");
       setRating(0);
-      fetchComments();
-      fetchRatings();
+      await fetchComments(true);
+      await fetchRatings();
     } catch (err) {
-      console.log("Lỗi gửi bình luận:", err, err.response?.data);
-      Alert.alert("Lỗi gửi bình luận", err.response?.data?.message || "Lỗi hệ thống");
+      console.log("Lỗi gửi bình luận/đánh giá:", err, err.response?.data);
+      Alert.alert("Lỗi gửi bình luận/đánh giá", err.response?.data?.message || "Lỗi hệ thống");
     }
   };
 
-  const handleRate = async (value) => {
-    if (!user) {
-      Alert.alert("Thông báo", "Bạn cần đăng nhập để đánh giá!", [
+  const handleDeleteComment = async (commentId) => {
+    if (!user || !token) {
+      Alert.alert("Thông báo", "Bạn cần đăng nhập để xóa bình luận!", [
         { text: "Hủy", style: "cancel" },
         { text: "Đăng nhập", onPress: () => navigation.navigate("Login") }
       ]);
       return;
     }
-    try {
-      await postRating(movieId, { value }, token);
-      setRating(value);
-      fetchRatings();
-    } catch (err) {
-      console.log("Lỗi gửi đánh giá:", err, err.response?.data);
-      Alert.alert("Lỗi gửi đánh giá", err.response?.data?.message || "Lỗi hệ thống");
+    Alert.alert(
+      "Xác nhận",
+      "Bạn có chắc chắn muốn xóa bình luận này?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              console.log("Xóa bình luận với ID:", commentId);
+              await deleteComment(movieId, commentId, token);
+              existingCommentIds.current.delete(commentId);
+              setShowDeleteButton(prev => ({ ...prev, [commentId]: false }));
+              await fetchComments(true);
+              Alert.alert("Thành công", "Bình luận đã được xóa.");
+            } catch (err) {
+              console.log("Lỗi xóa bình luận:", err, err.response?.data);
+              Alert.alert("Lỗi xóa bình luận", err.response?.data?.message || "Lỗi hệ thống");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleRating = async (value) => {
+    setRating(value);
+  };
+
+  const loadMoreComments = () => {
+    if (hasMoreComments) {
+      console.log("Loading more comments, page:", commentPage);
+      fetchComments();
     }
   };
 
@@ -186,102 +242,130 @@ export default function MovieDetailScreen({ route, navigation }) {
           mediaPlaybackRequiresUserAction={false}
           allowsInlineMediaPlayback={true}
           allowsFullscreenVideo={true}
-          onError={(e) => console.log("Lỗi tải video:", e.nativeEvent.description)}
+          onError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.log("Lỗi WebView:", nativeEvent);
+            Alert.alert("Lỗi", "Không thể tải video. Vui lòng kiểm tra lại.");
+          }}
         />
       </View>
     );
   };
 
-  const renderItem = ({ item }) => {
-    if (!item) return null;
-
-    // Xử lý danh sách thể loại
-    const genresDisplay = item.movieGenre && Array.isArray(item.movieGenre)
-      ? item.movieGenre.join(', ')
-      : "Không có thể loại";
+  const renderContent = () => {
+    if (!movie) {
+      return <Text style={styles.loadingText}>Không có dữ liệu phim</Text>;
+    }
 
     return (
       <View>
         {!showTrailer && (
           <Image
-            source={{ uri: item.imageUrl ? `${BASE_URL.replace('/api', '')}/Assets/Images/${item.imageUrl}` : undefined }}
+            source={{ uri: movie.imageUrl ? `${BASE_URL.replace('/api', '')}/Assets/Images/${movie.imageUrl}` : undefined }}
             style={styles.movieImage}
-            onError={() => console.log("Lỗi tải hình ảnh:", `${BASE_URL.replace('/api', '')}/Assets/Images/${item.imageUrl}`)}
           />
         )}
-        {showTrailer && renderTrailer()}
-        <Text style={styles.movieTitle}>{item.movieTitle || "Không có tiêu đề"}</Text>
-        <Text style={styles.movieDescription}>{item.movieDescription || "Không có mô tả"}</Text>
-        <Text style={styles.movieInfo}>Loại phim: {item.movieType || "Không xác định"}</Text>
-        <Text style={styles.movieInfo}>Diễn viên: {item.movieActors || "Không có thông tin"}</Text>
-        <Text style={styles.movieInfo}>Đạo diễn: {item.movieDirector || "Không có thông tin"}</Text>
-        <Text style={styles.movieInfo}>Quốc gia: {item.movieCountry || "Không có thông tin"}</Text>
-        <Text style={styles.movieInfo}>Thể loại: {genresDisplay}</Text>
+        {renderTrailer()}
+        <Text style={styles.movieTitle}>{movie.movieTitle || "Không có tiêu đề"}</Text>
+        <Text style={styles.movieDescription}>{movie.movieDescription || "Không có mô tả"}</Text>
+        <Text style={styles.movieInfo}>
+          Thể loại: {(movie.movieGenre || []).join(", ") || "Không xác định"} | Diễn viên: {movie.movieActors || "Không xác định"} | Đạo diễn: {movie.movieDirector || "Không xác định"} | Quốc gia: {movie.movieCountry || "Không xác định"}
+        </Text>
         <View style={styles.ratingContainer}>
-          <Text>Đánh giá: </Text>
-          <Text style={styles.ratingText}>{rating.toFixed(1)} ★</Text>
+          <Text style={styles.ratingText}>Đánh giá: {rating ? rating.toFixed(1) : 0} ★</Text>
           <View style={styles.ratingButtons}>
-            {[1, 2, 3, 4, 5].map((value) => (
-              <TouchableOpacity key={value} onPress={() => handleRate(value)} style={[styles.rateButton, rating === value && styles.selectedRateButton]}>
-                <Text style={styles.rateButtonText}>{value}★</Text>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <TouchableOpacity
+                key={star}
+                style={[styles.rateButton, rating === star && styles.selectedRateButton]}
+                onPress={() => handleRating(star)}
+              >
+                <Text style={styles.rateButtonText}>{star} ★</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
         {!showTrailer && (
-          <TouchableOpacity style={styles.playButton} onPress={handleTrailerPress}>
-            <Text style={styles.playButtonText}>Xem Phim</Text>
+          <TouchableOpacity onPress={handleTrailerPress} style={styles.playButton}>
+            <Text style={styles.playButtonText}>Xem phim</Text>
           </TouchableOpacity>
         )}
-        {episodes.length > 1 && (
-          <View style={styles.episodeContainer}>
-            {episodes.map((ep, idx) => (
-              <TouchableOpacity
-                key={ep.episodeID ? ep.episodeID.toString() : `ep_${idx}`}
-                style={[styles.episodeButton, selectedEpisode?.episodeID === ep.episodeID && styles.selectedEpisodeButton]}
-                onPress={() => handleEpisodeSelect(ep)}
-              >
-                <Text style={[styles.episodeText, selectedEpisode?.episodeID === ep.episodeID && styles.selectedEpisodeText]}>
-                  Tập {idx + 1}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <View style={styles.episodeContainer}>
+          {episodes.map((ep) => (
+            <TouchableOpacity
+              key={ep.episodeID}
+              style={[styles.episodeButton, selectedEpisode?.episodeID === ep.episodeID && styles.selectedEpisodeButton]}
+              onPress={() => handleEpisodeSelect(ep)}
+            >
+              <Text style={[styles.episodeText, selectedEpisode?.episodeID === ep.episodeID && styles.selectedEpisodeText]}>
+                {ep.title || `Tập ${ep.episodeNumber}`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         <View style={styles.commentSection}>
           <Text style={styles.commentTitle}>Bình luận</Text>
           {user ? (
-            <View>
-              <View style={styles.commentInputContainer}>
-                <TextInput
-                  value={commentText}
-                  onChangeText={setCommentText}
-                  placeholder="Nhập bình luận..."
-                  style={styles.commentInput}
-                />
-                <TouchableOpacity onPress={handleComment} style={styles.commentButton}>
-                  <Text style={styles.commentButtonText}>Gửi</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.ratingPrompt}>Đánh giá phim (1-5 sao):</Text>
+            <View style={styles.commentInputContainer}>
+              <TextInput
+                value={commentText}
+                onChangeText={setCommentText}
+                placeholder="Nhập bình luận..."
+                style={styles.commentInput}
+              />
+              <TouchableOpacity onPress={handleComment} style={styles.commentButton}>
+                <Text style={styles.commentButtonText}>Gửi</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity onPress={() => navigation.navigate("Login")} style={styles.loginPromptButton}>
               <Text style={styles.loginPrompt}>Đăng nhập để bình luận hoặc đánh giá</Text>
             </TouchableOpacity>
           )}
-          <FlatList
-            data={comments}
-            keyExtractor={(item) => item.id ? item.id.toString() : `comment_${Math.random().toString()}`}
-            renderItem={({ item }) => (
-              <View style={styles.commentItem}>
-                <Text style={styles.commentUser}>{item.userName || "Ẩn danh"}</Text>
-                <Text>{item.text || "Không có nội dung"}</Text>
-                {item.rating && <Text style={styles.commentRating}>Đánh giá: {item.rating} ★</Text>}
-              </View>
-            )}
-            style={styles.commentListContainer}
-          />
+          <Text style={styles.ratingPrompt}>Đánh giá phim (1-5 sao):</Text>
+          <View style={styles.commentListInnerContainer}>
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.commentList}
+              contentContainerStyle={styles.commentListContent}
+              showsVerticalScrollIndicator={true}
+              onMomentumScrollEnd={({ nativeEvent }) => {
+                const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+                console.log("ScrollView:", { contentOffset, contentSize, layoutMeasurement });
+                if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 20) {
+                  loadMoreComments();
+                }
+              }}
+              nestedScrollEnabled={true}
+              bounces={true}
+            >
+              {comments.map((item) => (
+                <TouchableOpacity
+                  key={item.id ? item.id.toString() : `comment_${Math.random().toString()}`}
+                  style={styles.commentItem}
+                  onLongPress={() => {
+                    console.log("onLongPress triggered", { user, userId: item.userId, commentId: item.id });
+                    if (user && item.userId === user.id) {
+                      setShowDeleteButton(prev => ({ ...prev, [item.id]: true }));
+                    }
+                  }}
+                  delayLongPress={5000}
+                >
+                  <View style={styles.commentHeader}>
+                    <Text style={styles.commentUser}>{item.userName || "Ẩn danh"}</Text>
+                    {user && item.userId === user.id && showDeleteButton[item.id] && (
+                      <TouchableOpacity onPress={() => handleDeleteComment(item.id)}>
+                        <Ionicons name="trash-outline" size={20} color="#FF6666" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <Text style={styles.commentText}>{item.text || "Không có nội dung"}</Text>
+                  {item.rating && <Text style={styles.commentRating}>Đánh giá: {item.rating} ★</Text>}
+                </TouchableOpacity>
+              ))}
+              {hasMoreComments && <ActivityIndicator size="small" color="#FF6666" style={styles.loadingIndicator} />}
+            </ScrollView>
+          </View>
         </View>
       </View>
     );
@@ -297,32 +381,35 @@ export default function MovieDetailScreen({ route, navigation }) {
   }
 
   return (
-    <FlatList
-      data={movie ? [movie] : []}
-      renderItem={renderItem}
-      keyExtractor={(item) => item?.movieID ? item.movieID.toString() : `movie_${Date.now()}`}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      ListHeaderComponent={
-        <View>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.backButton}>
-              <Text style={styles.backText}>{'< Quay về Home'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      }
-      contentContainerStyle={styles.container}
-      ListEmptyComponent={<Text style={styles.loadingText}>Không có dữ liệu phim</Text>}
-    />
+    <View style={styles.container}>
+      <FlatList
+        data={[{}]}
+        renderItem={() => (
+          <>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.backButton}>
+                <Text style={styles.backText}>{'< Quay về Home'}</Text>
+              </TouchableOpacity>
+            </View>
+            {renderContent()}
+          </>
+        )}
+        keyExtractor={() => "main_content"}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={styles.flatListContent}
+        ListHeaderComponent={<View />}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: "#fff", paddingBottom: 20 },
+  container: { flex: 1, backgroundColor: "#fff" },
+  flatListContent: { paddingBottom: 80 }, // Tăng paddingBottom cho thiết bị tràn viền
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, padding: 10 },
   backButton: { padding: 8 },
   backText: { color: '#ff4d6d', fontWeight: 'bold' },
-  movieImage: { width: "100%", height: 200 },
+  movieImage: { width: "100%", height: 200, resizeMode: 'cover' },
   movieTitle: { fontSize: 24, fontWeight: "bold", margin: 10 },
   movieDescription: { marginHorizontal: 10, color: "#333" },
   movieInfo: { marginHorizontal: 10, color: "#666" },
@@ -340,19 +427,59 @@ const styles = StyleSheet.create({
   episodeText: { color: "#333" },
   selectedEpisodeText: { color: "#fff" },
   trailerContainer: { position: "relative", marginTop: 10 },
-  commentSection: { margin: 10 },
-  commentTitle: { fontWeight: "bold", fontSize: 18 },
+  commentSection: { margin: 10, paddingBottom: 20 },
+  commentTitle: { fontWeight: "bold", fontSize: 18, marginBottom: 10 },
   commentInputContainer: { flexDirection: "row", alignItems: "center", marginVertical: 10 },
   commentInput: { flex: 1, borderWidth: 1, borderColor: "#ccc", borderRadius: 6, padding: 8 },
   commentButton: { marginLeft: 8, backgroundColor: "#FF6666", padding: 8, borderRadius: 6 },
   commentButtonText: { color: "#fff" },
-  ratingPrompt: { marginTop: 10, color: "#666" },
+  ratingPrompt: { marginTop: 10, marginBottom: 10, color: "#666" },
   loginPromptButton: { padding: 8 },
   loginPrompt: { color: "#ff4d6d", textAlign: "center", fontWeight: "bold" },
-  commentListContainer: { height: 200 },
-  commentItem: { marginVertical: 4, padding: 8, backgroundColor: "#f9f9f9", borderRadius: 6 },
-  commentUser: { fontWeight: "bold" },
-  commentRating: { color: "#FFD700" },
+  commentListInnerContainer: {
+    height: 400, // Chiều cao cố định cho khung trong
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
+    backgroundColor: '#f9f9f9',
+    padding: 10, // Padding để nội dung không sát viền
+    overflow: 'hidden', // Cắt nội dung tràn ra ngoài
+  },
+  commentListContent: { paddingBottom: 20 }, // Khoảng trống khi cuộn
+  commentList: { 
+    flexGrow: 0, // Ngăn ScrollView mở rộng quá khung cha
+    width: '100%', // Giới hạn chiều rộng
+  },
+  commentItem: { 
+    marginVertical: 4, 
+    padding: 8, 
+    backgroundColor: "#fff", 
+    borderRadius: 6, 
+    width: '100%', // Đảm bảo không tràn chiều rộng
+    flexShrink: 1, // Co lại nếu nội dung quá dài
+  },
+  commentHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 4,
+    flexWrap: 'wrap', // Đảm bảo header không tràn
+  },
+  commentUser: { 
+    fontWeight: "bold", 
+    flex: 1,
+    flexWrap: 'wrap', // Đảm bảo tên người dùng xuống dòng
+  },
+  commentText: { 
+    color: "#333", 
+    flexWrap: 'wrap', // Văn bản tự xuống dòng
+    maxWidth: '100%', // Giới hạn chiều rộng văn bản
+  },
+  commentRating: { 
+    color: "#FFD700", 
+    marginTop: 4,
+  },
   loadingText: { textAlign: 'center', marginVertical: 20, color: '#666' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingIndicator: { marginVertical: 10 },
 });

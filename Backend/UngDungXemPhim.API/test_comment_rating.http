@@ -1,0 +1,59 @@
+### Test Comment và Rating API
+
+### 1. Đăng nhập để lấy token
+POST http://localhost:5016/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "H@gmail.com",
+  "password": "123456"
+}
+
+### Lưu ý: Copy token từ response ở trên và thay thế YOUR_TOKEN_HERE trong các request dưới
+
+### 2. Test gửi bình luận (thay YOUR_TOKEN_HERE bằng token từ bước 1)
+POST http://localhost:5016/api/movies/1/Comments
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "text": "Phim hay quá!",
+  "rating": 5
+}
+
+### 2b. Test gửi bình luận với trailing comma (để test)
+POST http://localhost:5016/api/movies/1/Comments
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "text": "Phim hay quá!",
+  "rating": 5,
+}
+
+### 3. Test gửi đánh giá (thay YOUR_TOKEN_HERE bằng token từ bước 1)
+POST http://localhost:5016/api/movies/1/Ratings
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "value": 4
+}
+
+### 4. Test gửi bình luận chỉ có text
+POST http://localhost:5016/api/movies/1/Comments
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "text": "Bình luận không có đánh giá"
+}
+
+### 5. Test gửi đánh giá chỉ có rating
+POST http://localhost:5016/api/movies/1/Comments
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "rating": 3
+}

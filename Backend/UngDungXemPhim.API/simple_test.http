@@ -1,0 +1,36 @@
+### Test đơn giản
+
+### 1. Test endpoint không cần auth
+GET http://localhost:5016/api/movies
+
+### 2. Đăng ký user mới
+POST http://localhost:5016/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "phone": "0987654321",
+  "email": "test@example.com",
+  "password": "123456",
+  "birthday": "2000-01-01",
+  "gender": "Nam",
+  "location": "Hà Nội"
+}
+
+### 3. Đăng nhập
+POST http://localhost:5016/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "123456"
+}
+
+### 4. Test với token (copy token từ bước 3)
+POST http://localhost:5016/api/movies/1/Comments
+Content-Type: application/json
+Authorization: Bearer [TOKEN_TỪ_BƯỚC_3]
+
+{
+  "text": "Test comment"
+}

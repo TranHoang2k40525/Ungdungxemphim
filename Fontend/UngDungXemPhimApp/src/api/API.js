@@ -1,12 +1,16 @@
 // src/api/API.js
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
 // Chỉ cần sửa BASE_URL khi đổi IP/backend
 export const BASE_URL = "http://192.168.1.105:5016/api"; // Đổi thành IP backend khi deploy
 
 export const api = axios.create({
   baseURL: BASE_URL,
   timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json', // Đảm bảo gửi JSON
+  },
 });
 
 // Loại bỏ interceptor async, chuyển sang lấy token khi gọi API
@@ -70,6 +74,7 @@ export const getComments = async (movieId) => {
 // API gửi bình luận
 export const postComment = async (movieId, text, token) => {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  console.log("Payload gửi bình luận:", JSON.stringify({ text })); // Log để debug
   return api.post(`/Movies/${movieId}/Comments`, { text }, { headers });
 };
 
@@ -81,6 +86,7 @@ export const getRatings = async (movieId) => {
 // API gửi đánh giá
 export const postRating = async (movieId, value, token) => {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  console.log("Payload gửi đánh giá:", JSON.stringify({ value })); // Log để debug
   return api.post(`/Movies/${movieId}/Ratings`, { value }, { headers });
 };
 
@@ -89,3 +95,8 @@ export const getWatchHistory = async (token) => {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   return api.get(`/Users/WatchHistory`, { headers });
 };
+export const deleteComment = async (movieId, commentId, token) => {
+  return api.delete(`/Movies/${movieId}/Comments/${commentId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  };
