@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
-import { UserContext } from "./contexts/UserContext";
+import { UserProvider } from "./contexts/UserContext"; // Import UserProvider
 import Home from "./screens/Home/Home";
 import Login from "./screens/Auth/Login";
 import Register from "./screens/Auth/Register";
@@ -12,19 +12,18 @@ import WatchHistoryScreen from "./screens/User/WatchHistoryScreen";
 const Stack = createStackNavigator();
 
 export default function App() {
-    const [user, setUser] = useState(null);
-    return (
-        <UserContext.Provider value={{ user, setUser }}>
-            <NavigationContainer>
-                <Stack.Navigator initialRouteName="Home">
-                    <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
-                    <Stack.Screen name="Login" component={Login} options={{ headerShown: false }} />
-                    <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
-                    <Stack.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-                    <Stack.Screen name="MovieDetailScreen" component={MovieDetailScreen} options={{ headerShown: false }} />
-                    <Stack.Screen name="WatchHistoryScreen" component={WatchHistoryScreen} options={{ headerShown: false }} />
-                </Stack.Navigator>
-            </NavigationContainer>
-        </UserContext.Provider>
-    );
+  return (
+    <UserProvider> 
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Home">
+          <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
+          <Stack.Screen name="Login" component={Login} options={{ headerShown: false }} />
+          <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
+          <Stack.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
+          <Stack.Screen name="MovieDetailScreen" component={MovieDetailScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="WatchHistoryScreen" component={WatchHistoryScreen} options={{ headerShown: false }} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </UserProvider>
+  );
 }

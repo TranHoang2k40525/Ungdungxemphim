@@ -40,15 +40,26 @@ namespace UngDungXemPhim.Api.Controllers
             int userId = int.Parse(User.FindFirst("sub")?.Value ?? "0");
             var history = await _db.WatchHistories
                 .Include(h => h.Episode)
+                .ThenInclude(e => e.Movie)
+                .ThenInclude(m => m.MovieGenres)
+                .ThenInclude(mg => mg.Genre)
                 .Where(h => h.UserID == userId)
                 .OrderByDescending(h => h.WatchedDate)
                 .ToListAsync();
             var result = history.Select(h => new {
                 id = h.HistoryID,
-                title = h.Episode?.MovieID != null ? _db.Movies.Where(m => m.MovieID == h.Episode.MovieID).Select(m => m.Title).FirstOrDefault() : null,
-                imageUrl = h.Episode?.MovieID != null ? _db.Movies.Where(m => m.MovieID == h.Episode.MovieID).Select(m => m.ImagePath).FirstOrDefault() : null,
+                movieId = h.Episode?.MovieID,
+                title = h.Episode?.Movie?.Title,
+                imageUrl = h.Episode?.Movie?.ImagePath,
+                type = h.Episode?.Movie?.Type,
+                genres = h.Episode?.Movie?.MovieGenres.Select(mg => mg.Genre?.GenreName).ToList(),
                 watchedAt = h.WatchedDate,
-                episode = h.Episode?.EpisodeNumber ?? null
+                episode = h.Episode?.EpisodeNumber == 0 ? null : new {
+                    id = h.Episode?.EpisodeID,
+                    number = h.Episode?.EpisodeNumber,
+                    title = h.Episode?.Title,
+                    videoPath = h.Episode?.VideoPath
+                }
             });
             return Ok(new { history = result });
         }

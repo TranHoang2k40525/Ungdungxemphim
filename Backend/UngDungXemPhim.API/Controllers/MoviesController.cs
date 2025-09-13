@@ -34,7 +34,10 @@ namespace UngDungXemPhim.Api.Controllers
                 }
                 else
                 {
-                    query = query.Where(m => m.MovieGenres != null && m.MovieGenres.Any(g => g.Genre != null && g.Genre.GenreName == filter));
+                    // Filter by genre name (e.g., "phim kinh dị", "hành động")
+                    query = query.Where(m => m.MovieGenres != null && 
+                        m.MovieGenres.Any(mg => mg.Genre != null && 
+                        mg.Genre.GenreName.ToLower().Contains(filter.ToLower())));
                 }
             }
 
@@ -49,7 +52,10 @@ namespace UngDungXemPhim.Api.Controllers
                 MovieActors = m.Actors,
                 MovieDirector = m.Directors,
                 MovieCountry = m.Country,
-                MovieGenre = m.MovieGenres != null ? m.MovieGenres.Where(g => g.Genre != null).Select(g => g.Genre!.GenreName).ToList() : new List<string>()
+                MovieGenre = m.MovieGenres != null ? 
+                    m.MovieGenres.Where(g => g.Genre != null)
+                    .Select(g => g.Genre!.GenreName).ToList() : 
+                    new List<string>()
             }).ToList();
             return Ok(new { movies = result });
         }
@@ -59,6 +65,7 @@ namespace UngDungXemPhim.Api.Controllers
         {
             var m = await _db.Movies
                 .Include(m => m.MovieGenres)
+                .ThenInclude(mg => mg.Genre)
                 .Include(m => m.Episodes)
                 .FirstOrDefaultAsync(m => m.MovieID == id);
             if (m == null) return NotFound();
@@ -68,21 +75,17 @@ namespace UngDungXemPhim.Api.Controllers
                 MovieTitle = m.Title,
                 MovieDescription = m.Description,
                 ImageUrl = m.ImagePath,
+                VideoPath = m.Episodes?.FirstOrDefault()?.VideoPath ?? null,  // Nếu phim lẻ, lấy từ episode đầu hoặc null
                 MovieType = m.Type,
                 MovieActors = m.Actors,
                 MovieDirector = m.Directors,
                 MovieCountry = m.Country,
-                MovieGenre = m.MovieGenres != null ? m.MovieGenres.Where(g => g.Genre != null).Select(g => g.Genre!.GenreName).ToList() : new List<string>()
+                MovieGenre = m.MovieGenres != null ? 
+                    m.MovieGenres.Where(g => g.Genre != null)
+                    .Select(g => g.Genre!.GenreName).ToList() : 
+                    new List<string>()
             };
             return Ok(dto);
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> Create(Movie m)
-        {
-            _db.Movies.Add(m);
-            await _db.SaveChangesAsync();
-            return CreatedAtAction(nameof(Get), new { id = m.MovieID }, m);
         }
 
         [HttpGet("{id:int}/Episodes")]
@@ -113,16 +116,23 @@ namespace UngDungXemPhim.Api.Controllers
 
         [HttpPost("{id:int}/Comments")]
         [Authorize]
-        public async Task<IActionResult> PostComment(int id, [FromBody] dynamic body)
+        public async Task<IActionResult> PostComment(int id, [FromBody] CommentDto body)
         {
+            if (string.IsNullOrWhiteSpace(body.Text) && !body.Rating.HasValue)
+            {
+                return BadRequest("Nội dung bình luận hoặc đánh giá phải được cung cấp.");
+            }
+
             int userId = int.Parse(User.FindFirst("sub")?.Value ?? "0");
-            string text = (string)body.text;
             var episode = await _db.Episodes.FirstOrDefaultAsync(e => e.MovieID == id);
-            if (episode == null) return BadRequest();
-            var comment = new Comment {
+            if (episode == null) return BadRequest("Không tìm thấy tập phim cho phim này.");
+
+            var comment = new Comment
+            {
                 UserID = userId,
                 EpisodeID = episode.EpisodeID,
-                CommentText = text,
+                CommentText = string.IsNullOrWhiteSpace(body.Text) ? null : body.Text,
+                Rating = body.Rating,
                 CommentDate = DateTime.Now
             };
             _db.Comments.Add(comment);
@@ -144,17 +154,46 @@ namespace UngDungXemPhim.Api.Controllers
 
         [HttpPost("{id:int}/Ratings")]
         [Authorize]
-        public async Task<IActionResult> PostRating(int id, [FromBody] dynamic body)
+        public async Task<IActionResult> PostRating(int id, [FromBody] RatingDto body)
         {
+            if (body.Value < 1 || body.Value > 5)
+            {
+                return BadRequest("Đánh giá phải từ 1 đến 5 sao.");
+            }
+
             int userId = int.Parse(User.FindFirst("sub")?.Value ?? "0");
-            int value = (int)body.value;
             var episode = await _db.Episodes.FirstOrDefaultAsync(e => e.MovieID == id);
-            if (episode == null) return BadRequest();
+            if (episode == null) return BadRequest("Không tìm thấy tập phim cho phim này.");
+
             var comment = await _db.Comments.FirstOrDefaultAsync(c => c.EpisodeID == episode.EpisodeID && c.UserID == userId);
-            if (comment == null) return BadRequest();
-            comment.Rating = value;
+            if (comment == null)
+            {
+                comment = new Comment
+                {
+                    UserID = userId,
+                    EpisodeID = episode.EpisodeID,
+                    Rating = body.Value,
+                    CommentDate = DateTime.Now
+                };
+                _db.Comments.Add(comment);
+            }
+            else
+            {
+                comment.Rating = body.Value;
+            }
             await _db.SaveChangesAsync();
             return Ok(comment);
         }
+    }
+
+    public class CommentDto
+    {
+        public string? Text { get; set; }
+        public int? Rating { get; set; }
+    }
+
+    public class RatingDto
+    {
+        public int Value { get; set; }
     }
 }

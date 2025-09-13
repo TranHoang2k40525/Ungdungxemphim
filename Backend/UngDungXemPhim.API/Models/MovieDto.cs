@@ -5,10 +5,15 @@ namespace UngDungXemPhim.Api.Models
 {
     public class MovieDto
     {
+        internal int movieID;
+
         public int MovieID { get; set; }
         public string MovieTitle { get; set; } = string.Empty;
         public string? MovieDescription { get; set; }
         public string? ImageUrl { get; set; }
+
+        public string? VideoPath { get; set; }
+        
         public string MovieType { get; set; } = string.Empty;
         public string? MovieActors { get; set; }
         public string? MovieDirector { get; set; }

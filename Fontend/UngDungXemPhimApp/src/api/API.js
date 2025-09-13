@@ -2,7 +2,7 @@
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 // Chỉ cần sửa BASE_URL khi đổi IP/backend
-export const BASE_URL = "http://192.168.1.100:5016/api"; // Đổi thành IP backend khi deploy
+export const BASE_URL = "http://192.168.1.105:5016/api"; // Đổi thành IP backend khi deploy
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -18,6 +18,21 @@ export const getMovies = async (config = {}) => {
   try {
     const response = await api.get("/Movies", { ...config, headers });
     console.log("Phản hồi API:", response.data);
+    return response;
+  } catch (error) {
+    console.error("Lỗi kết nối backend:", error);
+    throw error;
+  }
+};
+
+export const getGenres = async () => {
+  const token = await AsyncStorage.getItem("token");
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  console.log("Gọi API:", BASE_URL + "/Genres");
+  console.log("Headers:", headers);
+  try {
+    const response = await api.get("/Genres", { headers });
+    console.log("Phản hồi API Genres:", response.data);
     return response;
   } catch (error) {
     console.error("Lỗi kết nối backend:", error);
@@ -74,4 +89,3 @@ export const getWatchHistory = async (token) => {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   return api.get(`/Users/WatchHistory`, { headers });
 };
-// Có thể thêm các API khác ở đây

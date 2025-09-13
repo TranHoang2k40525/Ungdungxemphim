@@ -3,7 +3,7 @@
     "name": "UngDungXemPhimApp",
     "slug": "UngDungXemPhimApp",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
    
     "scheme": "ungdungxemphimapp",
     "userInterfaceStyle": "automatic",
