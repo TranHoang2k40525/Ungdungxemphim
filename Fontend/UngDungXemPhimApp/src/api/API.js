@@ -3,7 +3,7 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Chỉ cần sửa BASE_URL khi đổi IP/backend
-export const BASE_URL = "http://192.168.1.105:5016/api"; // Đổi thành IP backend khi deploy
+export const BASE_URL = "http://192.168.100.184:5016/api"; // Đổi thành IP backend khi deploy
 
 export const api = axios.create({
   baseURL: BASE_URL,
