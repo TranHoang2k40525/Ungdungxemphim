@@ -20,6 +20,26 @@ namespace UngDungXemPhim.Api.Controllers
             _jwtService = jwtService;
         }
 
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetUserById(int id)
+        {
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserID == id);
+            if (user == null)
+            {
+                return NotFound("Không tìm thấy người dùng.");
+            }
+
+            return Ok(new
+            {
+                id = user.UserID,
+                name = user.FullName,
+                email = user.Email,
+                phone = user.Phone,
+                birthday = user.Birthday,
+                avatar = user.Avatar != null ? Convert.ToBase64String(user.Avatar) : null
+            });
+        }
+
         [HttpGet("profile")]
         [Authorize]
         public async Task<IActionResult> GetProfile()
@@ -45,7 +65,7 @@ namespace UngDungXemPhim.Api.Controllers
                 email = user.Email,
                 phone = user.Phone,
                 birthday = user.Birthday,
-                avatar = user.Avatar
+                avatar = user.Avatar != null ? Convert.ToBase64String(user.Avatar) : null
             });
         }
 
@@ -106,7 +126,7 @@ namespace UngDungXemPhim.Api.Controllers
                 email = user.Email,
                 phone = user.Phone,
                 birthday = user.Birthday,
-                avatar = user.Avatar
+                avatar = user.Avatar != null ? Convert.ToBase64String(user.Avatar) : null
             });
         }
 
@@ -269,4 +289,23 @@ namespace UngDungXemPhim.Api.Controllers
         }
     }
 
+    public class UpdateProfileDto
+    {
+        public string? Name { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public DateTime? Birthday { get; set; }
+        public byte[]? Avatar { get; set; }
+    }
+
+    public class ChangePasswordDto
+    {
+        public string OldPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+    }
+
+    public class AddWatchHistoryDto
+    {
+        public int EpisodeID { get; set; }
+    }
 }
