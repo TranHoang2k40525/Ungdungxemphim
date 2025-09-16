@@ -11,6 +11,11 @@
     "ios": {
       "supportsTablet": true
     },
+    "splash": {
+      "image": "./src/assets/images/icon.png", 
+      "resizeMode": "contain", 
+      "backgroundColor": "#ffffff"
+    },
     "android": {
       "adaptiveIcon": {
         
@@ -28,9 +33,9 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./src/assets/images/icon.png",
           "imageWidth": 200,
-          "resizeMode": "contain",
+          "resizeMode": "cover",
           "backgroundColor": "#ffffff"
         }
       ]
