@@ -1,9 +1,9 @@
-// src/api/API.js
+// src/api/API.js (With saveWatchHistory added)
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Chỉ cần sửa BASE_URL khi đổi IP/backend
-export const BASE_URL = "http://192.168.1.105:5016/api"; // Đổi thành IP backend khi deploy
+export const BASE_URL = "http://192.168.100.184:5016/api"; // Đổi thành IP backend khi deploy
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -93,10 +93,40 @@ export const postRating = async (movieId, value, token) => {
 // API lấy lịch sử xem phim
 export const getWatchHistory = async (token) => {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  return api.get(`/Users/WatchHistory`, { headers });
+  
+  console.log("=== getWatchHistory API Call ===");
+  console.log("URL:", `${BASE_URL}/Users/WatchHistory`);
+  console.log("Headers:", headers);
+  
+  try {
+    const response = await api.get(`/Users/WatchHistory`, { headers }); // THÊM await
+    console.log("getWatchHistory response status:", response.status);
+    console.log("getWatchHistory response data:", response.data);
+    return response;
+  } catch (error) {
+    console.log("=== getWatchHistory ERROR ===");
+    console.log("Error status:", error.response?.status);
+    console.log("Error data:", error.response?.data);
+    console.log("Error message:", error.message);
+    throw error;
+  }
 };
+
+// API lưu lịch sử xem phim (đổi tên từ postWatchHistory thành saveWatchHistory)
+export const saveWatchHistory = async (movieId, episodeId = null, token) => {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const payload = {
+    movieId: movieId,
+    episodeId: episodeId,
+    watchedAt: new Date().toISOString()
+  };
+  console.log("Payload lưu lịch sử xem:", JSON.stringify(payload)); // Log để debug
+  return api.post(`/Users/WatchHistory`, payload, { headers });
+};
+
+// API xóa bình luận
 export const deleteComment = async (movieId, commentId, token) => {
   return api.delete(`/Movies/${movieId}/Comments/${commentId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  };
+};

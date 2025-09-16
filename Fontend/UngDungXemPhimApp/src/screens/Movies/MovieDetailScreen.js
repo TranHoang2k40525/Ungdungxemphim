@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, FlatList, TextInput, Alert, Refres
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { getMovieDetail, getEpisodes, postComment, getComments, postRating, getRatings, deleteComment, BASE_URL } from "../../api/API";
+import { getMovieDetail, getEpisodes, postComment, getComments, postRating, getRatings, deleteComment, saveWatchHistory, BASE_URL } from "../../api/API"; // Thêm saveWatchHistory
 import { UserContext } from "../../contexts/UserContext";
 
 export default function MovieDetailScreen({ route, navigation }) {
@@ -123,7 +123,20 @@ export default function MovieDetailScreen({ route, navigation }) {
     setRefreshing(false);
   };
 
-  const handleTrailerPress = () => {
+  // Function lưu lịch sử xem phim
+  const saveToWatchHistory = async (episodeId = null) => {
+    if (!user || !token) return;
+    
+    try {
+      await saveWatchHistory(movieId, episodeId, token);
+      console.log("Đã lưu lịch sử xem phim thành công");
+    } catch (error) {
+      console.log("Lỗi khi lưu lịch sử xem:", error);
+      // Không hiển thị alert để không làm gián đoạn trải nghiệm người dùng
+    }
+  };
+
+  const handleTrailerPress = async () => {
     if (!user) {
       Alert.alert("Thông báo", "Bạn cần đăng nhập để xem phim!", [
         { text: "Hủy", style: "cancel" },
@@ -136,10 +149,14 @@ export default function MovieDetailScreen({ route, navigation }) {
       return;
     }
     console.log("Đường dẫn video khi nhấn xem:", `${BASE_URL.replace('/api', '')}/Assets/Video/${videoUrl}`);
+    
+    // Lưu lịch sử xem phim
+    await saveToWatchHistory(selectedEpisode?.episodeID || null);
+    
     setShowTrailer(true);
   };
 
-  const handleEpisodeSelect = (ep) => {
+  const handleEpisodeSelect = async (ep) => {
     if (!user) {
       Alert.alert("Thông báo", "Bạn cần đăng nhập để xem phim!", [
         { text: "Hủy", style: "cancel" },
@@ -149,8 +166,12 @@ export default function MovieDetailScreen({ route, navigation }) {
     }
     setSelectedEpisode(ep);
     setVideoUrl(ep.videoPath || "");
-    setShowTrailer(true);
     console.log("Đường dẫn video tập được chọn:", `${BASE_URL.replace('/api', '')}/Assets/Video/${ep.videoPath}`);
+    
+    // Lưu lịch sử xem phim khi chọn tập
+    await saveToWatchHistory(ep.episodeID);
+    
+    setShowTrailer(true);
   };
 
   const handleComment = async () => {
@@ -265,16 +286,14 @@ export default function MovieDetailScreen({ route, navigation }) {
             style={styles.movieImage}
           />
         )}
-        {showTrailer && renderTrailer()}
+        {renderTrailer()}
         <Text style={styles.movieTitle}>{movie.movieTitle || "Không có tiêu đề"}</Text>
         <Text style={styles.movieDescription}>{movie.movieDescription || "Không có mô tả"}</Text>
-        <Text style={styles.movieInfo}>Loại phim: {movie.movieType || "Không xác định"}</Text>
-        <Text style={styles.movieInfo}>Diễn viên: {movie.movieActors || "Không có thông tin"}</Text>
-        <Text style={styles.movieInfo}>Đạo diễn: {movie.movieDirector || "Không có thông tin"}</Text>
-        <Text style={styles.movieInfo}>Quốc gia: {movie.movieCountry || "Không có thông tin"}</Text>
-        <Text style={styles.movieInfo}>Thể loại: {movie.movieGenre}</Text>
+        <Text style={styles.movieInfo}>
+          Thể loại: {(movie.movieGenre || []).join(", ") || "Không xác định"} | Diễn viên: {movie.movieActors || "Không xác định"} | Đạo diễn: {movie.movieDirector || "Không xác định"} | Quốc gia: {movie.movieCountry || "Không xác định"}
+        </Text>
         <View style={styles.ratingContainer}>
-          <Text style={styles.ratingText}>Đánh giá: {rating ? rating.toFixed(1) : 0} ★</Text>
+          <Text style={styles.ratingText}>Đánh giá: {rating ? rating.toFixed(1) : 0} ⭐</Text>
           <View style={styles.ratingButtons}>
             {[1, 2, 3, 4, 5].map((star) => (
               <TouchableOpacity
@@ -282,7 +301,7 @@ export default function MovieDetailScreen({ route, navigation }) {
                 style={[styles.rateButton, rating === star && styles.selectedRateButton]}
                 onPress={() => handleRating(star)}
               >
-                <Text style={styles.rateButtonText}>{star} ★</Text>
+                <Text style={styles.rateButtonText}>{star} ⭐</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -362,7 +381,7 @@ export default function MovieDetailScreen({ route, navigation }) {
                     )}
                   </View>
                   <Text style={styles.commentText}>{item.text || "Không có nội dung"}</Text>
-                  {item.rating && <Text style={styles.commentRating}>Đánh giá: {item.rating} ★</Text>}
+                  {item.rating && <Text style={styles.commentRating}>Đánh giá: {item.rating} ⭐</Text>}
                 </TouchableOpacity>
               ))}
               {hasMoreComments && <ActivityIndicator size="small" color="#FF6666" style={styles.loadingIndicator} />}

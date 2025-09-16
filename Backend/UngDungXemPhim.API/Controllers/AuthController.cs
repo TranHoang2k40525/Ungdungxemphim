@@ -8,6 +8,7 @@ using UngDungXemPhim.Api.Data;
 using UngDungXemPhim.Api.Models;
 using System.Security.Cryptography;
 using UngDungXemPhim.Api.Services;
+using Microsoft.Extensions.Logging;
 
 namespace UngDungXemPhim.Api.Controllers
 {
@@ -18,26 +19,21 @@ namespace UngDungXemPhim.Api.Controllers
         private readonly AppDbContext _db;
         private readonly IConfiguration _config;
         private readonly IJwtService _jwtService;
-        
-        public AuthController(AppDbContext db, IConfiguration config, IJwtService jwtService)
+        private readonly ILogger<AuthController> _logger;
+
+        public AuthController(AppDbContext db, IConfiguration config, IJwtService jwtService, ILogger<AuthController> logger)
         {
             _db = db;
             _config = config;
             _jwtService = jwtService;
+            _logger = logger;
         }
 
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
-            // Kiểm tra định dạng email
             if (!System.Text.RegularExpressions.Regex.IsMatch(dto.Email, @"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"))
                 return BadRequest(new { message = "Email không đúng định dạng" });
-            // Kiểm tra số điện thoại (10-11 số, chỉ số)
-            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.Phone, @"^\d{10,11}$"))
-                return BadRequest(new { message = "Số điện thoại phải là 10 hoặc 11 số" });
-            // Kiểm tra ngày sinh
-            if (dto.Birthday == null || dto.Birthday < new DateTime(1900, 1, 1) || dto.Birthday > DateTime.Now)
-                return BadRequest(new { message = "Ngày sinh không hợp lệ" });
             if (await _db.Users.AnyAsync(u => u.Email == dto.Email))
                 return BadRequest(new { message = "Email đã tồn tại" });
 
@@ -74,28 +70,6 @@ namespace UngDungXemPhim.Api.Controllers
             if (!VerifyPassword(dto.Password, user.Account.PasswordHash))
                 return Unauthorized(new { message = "Email hoặc mật khẩu không đúng" });
 
-            // Nếu token còn hạn thì trả về token cũ
-            var handler = new JwtSecurityTokenHandler();
-            if (!string.IsNullOrEmpty(user.Account.Token))
-            {
-                var jwt = handler.ReadJwtToken(user.Account.Token);
-                if (jwt.ValidTo > DateTime.UtcNow)
-                {
-                    return Ok(new
-                    {
-                        user = new
-                        {
-                            id = user.UserID,
-                            name = user.FullName,
-                            email = user.Email,
-                            phone = user.Phone,
-                            birthday = user.Birthday
-                        },
-                        token = user.Account.Token
-                    });
-                }
-            }
-            // Nếu hết hạn thì tạo token mới
             var token = _jwtService.GenerateToken(user);
             user.Account.Token = token;
             await _db.SaveChangesAsync();
@@ -113,6 +87,57 @@ namespace UngDungXemPhim.Api.Controllers
             });
         }
 
+        [HttpPost("send-otp")]
+        public async Task<IActionResult> SendOtp([FromBody] SendOtpDto dto)
+        {
+            var user = await _db.Users.Include(u => u.Account).FirstOrDefaultAsync(u => u.Email == dto.Email);
+            if (user == null)
+                return NotFound(new { message = "Email không tồn tại" });
+
+            var otp = new Random().Next(100000, 999999).ToString();
+
+            // Kiểm tra và tạo Account nếu chưa tồn tại
+            if (user.Account == null)
+            {
+                _logger.LogInformation("Creating new account for user {UserId}", user.UserID);
+                var account = new Account
+                {
+                    UserID = user.UserID,
+                    PasswordHash = "" // Giá trị mặc định
+                };
+                _db.Accounts.Add(account);
+                await _db.SaveChangesAsync(); // Lưu trước khi gán Token
+
+                // Reload user để đảm bảo Account được liên kết
+                user = await _db.Users.Include(u => u.Account).FirstOrDefaultAsync(u => u.UserID == user.UserID);
+                _logger.LogInformation("Account created and reloaded for user {UserId}", user.UserID);
+            }
+
+            // Gán và lưu OTP
+            user.Account.Token = otp;
+            await _db.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Mã OTP đã được tạo", otp = otp });
+        }
+
+        [HttpPost("verify-otp")]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDto dto)
+        {
+            var user = await _db.Users.Include(u => u.Account).FirstOrDefaultAsync(u => u.Email == dto.Email);
+            if (user == null || user.Account == null)
+                return NotFound(new { message = "Email không tồn tại" });
+
+            if (user.Account.Token != dto.Otp)
+                return BadRequest(new { success = false, message = "Mã OTP không đúng" });
+
+            var account = user.Account;
+            account.PasswordHash = HashPassword(dto.NewPassword);
+            account.Token = null; // Xóa OTP sau khi xác minh
+            await _db.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Mật khẩu đã được thay đổi" });
+        }
+
         private string HashPassword(string password)
         {
             using var sha256 = SHA256.Create();
@@ -124,7 +149,18 @@ namespace UngDungXemPhim.Api.Controllers
         {
             return HashPassword(password) == hash;
         }
+    }
 
+    public class SendOtpDto
+    {
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class VerifyOtpDto
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Otp { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
     }
 
     public class RegisterDto
@@ -138,6 +174,7 @@ namespace UngDungXemPhim.Api.Controllers
         public string Location { get; set; } = string.Empty;
         public byte[]? Avatar { get; set; }
     }
+
     public class LoginDto
     {
         public string Email { get; set; } = string.Empty;
