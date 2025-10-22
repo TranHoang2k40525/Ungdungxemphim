@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,6 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { getMovies, getGenres, BASE_URL } from "../../api/API";
-import { UserContext } from "../../contexts/UserContext";
 import icon from '../../assets/images/icon.png';
 
 const { width } = Dimensions.get('window');
@@ -27,11 +26,9 @@ const categories = [
   { label: "Thể Loại", value: "genres" },
   { label: "Phim bộ", value: "series" },
   { label: "Phim lẻ", value: "single" },
-  { label: "Lịch sử", value: "history" },
 ];
 
 export default function Home({ navigation }) {
-  const { user } = useContext(UserContext);
   const [movies, setMovies] = useState([]); // Danh sách phim theo bộ lọc
   const [allMovies, setAllMovies] = useState([]); // Toàn bộ danh sách phim để tìm kiếm
   const [featuredMovies, setFeaturedMovies] = useState([]);
@@ -41,7 +38,6 @@ export default function Home({ navigation }) {
   const [showSubMenu, setShowSubMenu] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("all"); // Mặc định là "all"
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchSuggestions, setSearchSuggestions] = useState([]); // Đề xuất tìm kiếm
@@ -52,7 +48,7 @@ export default function Home({ navigation }) {
     fetchAllMovies(); // Lấy toàn bộ phim để tìm kiếm
     fetchGenres();
     fetchMovies(); // Lấy phim theo selectedGenre
-  }, [user, selectedGenre]);
+  }, [selectedGenre]);
 
   useEffect(() => {
     if (scrollViewRef.current) {
@@ -124,14 +120,6 @@ export default function Home({ navigation }) {
     setRefreshing(false);
   };
 
-  const handleProfile = () => {
-    if (!user) {
-      setShowLoginModal(true);
-    } else {
-      navigation.navigate("Profile");
-    }
-  };
-
   const handleMenu = () => {
     setShowMenu(!showMenu);
     setShowSubMenu(false);
@@ -169,15 +157,6 @@ export default function Home({ navigation }) {
     } else {
       setSearchSuggestions([]);
     }
-  };
-
-  const handleLoginConfirm = () => {
-    setShowLoginModal(false);
-    navigation.replace("Login");
-  };
-
-  const handleLoginCancel = () => {
-    setShowLoginModal(false);
   };
 
   const handleNextPage = () => {
@@ -285,33 +264,11 @@ export default function Home({ navigation }) {
       <View style={styles.header}>
         <Text style={styles.headerText}>Trang chủ</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => navigation.navigate('WatchHistoryScreen')} style={styles.iconButton}>
-            <Icon name="history" size={24} color="#ff4d6d" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleProfile} style={styles.avatarButton}>
-            <Image source={user && user.avatarUrl ? { uri: user.avatarUrl } : icon} style={styles.avatar} />
-          </TouchableOpacity>
           <TouchableOpacity onPress={handleMenu} style={styles.menuButton}>
             <Icon name="bars" size={24} color="#ff4d6d" />
           </TouchableOpacity>
         </View>
       </View>
-
-      <Modal visible={showLoginModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalText}>Bạn có muốn đăng nhập không?</Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity onPress={handleLoginConfirm} style={[styles.modalButton, styles.confirmButton]}>
-                <Text style={styles.confirmButtonText}>Có</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleLoginCancel} style={[styles.modalButton, styles.cancelButton]}>
-                <Text style={styles.cancelButtonText}>Không</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       <View style={styles.searchContainer}>
         <Icon name="search" size={18} color="#888" style={styles.searchIcon} />
