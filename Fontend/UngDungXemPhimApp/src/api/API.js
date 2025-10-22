@@ -1,8 +1,12 @@
 // src/api/API.js - Simplified (No Auth, No Comments, No Ratings)
 import axios from "axios";
+import getEnvVars from "../config/env";
 
-// Chỉ cần sửa BASE_URL khi đổi IP/backend
-export const BASE_URL = "http://10.35.237.105:5016/api"; // Đổi thành IP backend khi deploy
+const { apiUrl, assetUrl } = getEnvVars();
+
+// Sử dụng environment variables
+export const BASE_URL = apiUrl;
+export const ASSET_URL = assetUrl;
 
 export const api = axios.create({
   baseURL: BASE_URL,

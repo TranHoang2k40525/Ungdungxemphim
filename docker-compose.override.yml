@@ -1,0 +1,34 @@
+# Docker Compose Override for Development Environment
+# This file is automatically loaded when running: docker compose up
+# It overrides settings in docker-compose.yml for development
+
+version: '3.8'
+
+services:
+  sqlserver:
+    environment:
+      - MSSQL_SA_PASSWORD=123456789
+    ports:
+      - "1433:1433"
+
+  backend:
+    build:
+      context: ./Backend/UngDungXemPhim.API
+      dockerfile: Dockerfile.dev
+      args:
+        - BUILD_CONFIGURATION=Debug
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DB_SERVER=sqlserver
+      - DB_NAME=UngDungXemPhim_v2
+      - DB_USER=sa
+      - DB_PASSWORD=123456789
+      - DB_TRUST_CERTIFICATE=True
+      - API_PORT=5016
+      - API_HOST=0.0.0.0
+      - ASSET_BASE_URL=http://localhost:5016/Assets
+    volumes:
+      - ./Backend/Asset:/app/Asset
+      - ./Backend/UngDungXemPhim.API:/app/src
+    # Hot reload for development
+    command: dotnet watch run --project /app/src/UngDungXemPhim.API.csproj

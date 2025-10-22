@@ -6,7 +6,17 @@ node_modules/
 
 # Bỏ qua các file log và hệ thống
 *.log
-*.env
+
+# Environment Variables (IMPORTANT!)
+.env
+.env.local
+.env.*.local
+
+# Secrets và Configs nhạy cảm
+secrets/
+*.secret
+*.key
+*.pem
 
 # Bỏ qua file media lớn
 *.mp4
@@ -15,3 +25,13 @@ node_modules/
 *.mov
 *.zip
 *.rar
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Docker volumes
+docker-volumes/

@@ -41,9 +41,9 @@ namespace UngDungXemPhim.Api.Data
                 .HasForeignKey(e => e.MovieID)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Movie type constraint
+            // Movie type constraint (Updated to use ToTable)
             modelBuilder.Entity<Movie>()
-                .HasCheckConstraint("CK_Movies_Type", "[Type] IN (N'Phim lẻ', N'Phim bộ')");
+                .ToTable(t => t.HasCheckConstraint("CK_Movies_Type", "[Type] IN (N'Phim lẻ', N'Phim bộ')"));
         }
     }
 }

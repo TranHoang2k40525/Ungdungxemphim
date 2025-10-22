@@ -19,11 +19,13 @@ namespace UngDungXemPhim.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] string? filter = null)
         {
+#pragma warning disable CS8620 // Argument nullability mismatch
             var query = _db.Movies
                 .Include(m => m.MovieGenres)
                 .ThenInclude(mg => mg.Genre)
                 .Include(m => m.Episodes)
                 .AsQueryable();
+#pragma warning restore CS8620
 
             if (!string.IsNullOrEmpty(filter))
             {
@@ -65,11 +67,13 @@ namespace UngDungXemPhim.Api.Controllers
         [HttpGet("{id:int}")]
         public async Task<IActionResult> Get(int id)
         {
+#pragma warning disable CS8620 // Argument nullability mismatch
             var m = await _db.Movies
                 .Include(m => m.MovieGenres)
                 .ThenInclude(mg => mg.Genre)
                 .Include(m => m.Episodes)
                 .FirstOrDefaultAsync(m => m.MovieID == id);
+#pragma warning restore CS8620
             if (m == null) return NotFound();
             var dto = new MovieDto
             {

@@ -1,0 +1,64 @@
+# Docker Compose for Production Environment
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  sqlserver:
+    environment:
+      - MSSQL_SA_PASSWORD_FILE=/run/secrets/db_password
+    secrets:
+      - db_password
+    # Production tuning
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  backend:
+    build:
+      context: ./Backend/UngDungXemPhim.API
+      dockerfile: Dockerfile.prod
+      args:
+        - BUILD_CONFIGURATION=Release
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DB_SERVER=sqlserver
+      - DB_NAME=UngDungXemPhim_v2
+      - DB_USER=sa
+      - DB_TRUST_CERTIFICATE=False
+      - API_PORT=5016
+      - API_HOST=0.0.0.0
+    secrets:
+      - db_password
+      - api_secrets
+    configs:
+      - source: app_config
+        target: /app/configs/app.conf
+    # Production tuning
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  api_secrets:
+    file: ./secrets/api_secrets.txt
+
+configs:
+  app_config:
+    file: ./configs/app.conf

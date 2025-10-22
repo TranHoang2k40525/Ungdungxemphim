@@ -1,0 +1,15 @@
+# Application Configuration
+# This is a non-sensitive config file
+
+[Server]
+MaxConnections=1000
+Timeout=30
+
+[Features]
+EnableSwagger=false
+EnableDetailedErrors=false
+EnableCors=true
+
+[Performance]
+CacheEnabled=true
+CacheDuration=3600

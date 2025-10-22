@@ -5,8 +5,6 @@ namespace UngDungXemPhim.Api.Models
 {
     public class MovieDto
     {
-        internal int movieID;
-
         public int MovieID { get; set; }
         public string MovieTitle { get; set; } = string.Empty;
         public string? MovieDescription { get; set; }

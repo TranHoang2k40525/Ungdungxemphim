@@ -1,0 +1,58 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Secrets and configs
+secrets/
+!secrets/*.example
+configs/
+!configs/*.example
+
+# Build artifacts
+bin/
+obj/
+out/
+dist/
+build/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+!Dockerfile
+
+# Node modules (if any)
+node_modules/
+npm-debug.log*
+
+# Media files
+*.mp4
+*.avi
+*.mkv
+*.mov
