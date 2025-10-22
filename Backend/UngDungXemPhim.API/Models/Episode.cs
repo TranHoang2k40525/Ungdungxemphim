@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace UngDungXemPhim.Api.Models
@@ -25,7 +24,5 @@ namespace UngDungXemPhim.Api.Models
         public string? VideoPath { get; set; }
 
         public Movie? Movie { get; set; }
-        public ICollection<Comment>? Comments { get; set; }
-        public ICollection<WatchHistory>? WatchHistories { get; set; }
     }
 }
