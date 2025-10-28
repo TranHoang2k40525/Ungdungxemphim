@@ -2,12 +2,11 @@
 # This file is automatically loaded when running: docker compose up
 # It overrides settings in docker-compose.yml for development
 
-version: '3.8'
 
 services:
   sqlserver:
     environment:
-      - MSSQL_SA_PASSWORD=123456789
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD}
     ports:
       - "1433:1433"
 
@@ -18,17 +17,50 @@ services:
       args:
         - BUILD_CONFIGURATION=Debug
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - DB_SERVER=sqlserver
-      - DB_NAME=UngDungXemPhim_v2
-      - DB_USER=sa
-      - DB_PASSWORD=123456789
-      - DB_TRUST_CERTIFICATE=True
-      - API_PORT=5016
-      - API_HOST=0.0.0.0
-      - ASSET_BASE_URL=http://localhost:5016/Assets
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+      - DB_SERVER=${DB_SERVER}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_TRUST_CERTIFICATE=${DB_TRUST_CERTIFICATE:-True}
+      - API_PORT=${API_PORT}
+      - API_HOST=${API_HOST}
+      - ASSET_BASE_URL=${ASSET_BASE_URL}
     volumes:
       - ./Backend/Asset:/app/Asset
       - ./Backend/UngDungXemPhim.API:/app/src
-    # Hot reload for development
     command: dotnet watch run --project /app/src/UngDungXemPhim.API.csproj
+    depends_on:
+      - sqlserver
+    networks:
+      - ungdungxemphim-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./Fontend/UngDungXemPhimApp
+      dockerfile: Dockerfile
+    container_name: ungdungxemphim-frontend
+    working_dir: /app
+    command: npx expo start
+    environment:
+      - EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL}
+      - EXPO_PUBLIC_ASSET_URL=${EXPO_PUBLIC_ASSET_URL}
+      - REACT_NATIVE_PACKAGER_HOSTNAME=localhost
+    ports:
+      - "19000:19000"  # Expo DevTools
+      - "19001:19001"  # Expo Metro Bundler
+      - "19002:19002"  # Expo Tunnel
+      - "8081:8081"    # Metro Bundler
+    volumes:
+      - ./Fontend/UngDungXemPhimApp:/app
+      - /app/node_modules  # Không ghi đè node_modules từ image
+    depends_on:
+      - backend
+    networks:
+      - ungdungxemphim-network
+    restart: unless-stopped
+
+networks:
+  ungdungxemphim-network:
+    driver: bridge

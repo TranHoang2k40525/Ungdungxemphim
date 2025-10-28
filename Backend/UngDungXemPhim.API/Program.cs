@@ -35,7 +35,20 @@ if (File.Exists(envFile))
 var dbServer = Environment.GetEnvironmentVariable("DB_SERVER");
 var dbName = Environment.GetEnvironmentVariable("DB_NAME");
 var dbUser = Environment.GetEnvironmentVariable("DB_USER");
+
+// GIẢI PHÁP 2: Đọc password từ file secret nếu có, không thì từ env variable
 var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD");
+var dbPasswordSecretPath = "/secrets/db_password";
+if (File.Exists(dbPasswordSecretPath))
+{
+    dbPassword = File.ReadAllText(dbPasswordSecretPath).Trim();
+    Console.WriteLine("✅ Đọc DB password từ file secret: /secrets/db_password");
+}
+else if (!string.IsNullOrEmpty(dbPassword))
+{
+    Console.WriteLine("⚠️ Đọc DB password từ environment variable (dev mode)");
+}
+
 var dbTrustCert = Environment.GetEnvironmentVariable("DB_TRUST_CERTIFICATE") ?? "True";
 
 if (!string.IsNullOrEmpty(dbServer) && !string.IsNullOrEmpty(dbName))
@@ -87,12 +100,29 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseHttpsRedirection();
 
-var assetPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "Asset");
-app.UseStaticFiles(new StaticFileOptions
+// Check multiple possible Asset paths (for both dev and production)
+var assetPath = Path.Combine(Directory.GetCurrentDirectory(), "Asset");
+if (!Directory.Exists(assetPath))
 {
-    FileProvider = new PhysicalFileProvider(assetPath),
-    RequestPath = "/Assets"
-});
+    assetPath = "/app/Asset"; // Docker mounted path
+}
+if (!Directory.Exists(assetPath))
+{
+    assetPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "Asset");
+}
+
+if (Directory.Exists(assetPath))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(assetPath),
+        RequestPath = "/Assets"
+    });
+}
+else
+{
+    Console.WriteLine($"Warning: Asset directory not found at {assetPath}");
+}
 
 app.MapControllers();
 

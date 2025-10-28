@@ -1,15 +1,16 @@
 # Docker Compose for Production Environment
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-version: '3.8'
-
 services:
   sqlserver:
+    # PRODUCTION - Dùng volume RIÊNG: ungdungxemphim_sqlserver-dataprod
+    volumes:
+      - sqlserver-dataprod:/var/opt/mssql
+      # Mount file password từ host vào container
+      - ./secrets/db_password.txt:/secrets/db_password:ro
     environment:
-      - MSSQL_SA_PASSWORD_FILE=/run/secrets/db_password
-    secrets:
-      - db_password
-    # Production tuning
+      # SQL Server đọc password từ file /secrets/db_password
+      - MSSQL_SA_PASSWORD_FILE=/secrets/db_password
     deploy:
       resources:
         limits:
@@ -18,6 +19,9 @@ services:
         reservations:
           cpus: '1'
           memory: 2G
+    networks:
+      - ungdungxemphim-network
+    restart: unless-stopped
 
   backend:
     build:
@@ -27,19 +31,25 @@ services:
         - BUILD_CONFIGURATION=Release
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - DOTNET_RUNNING_IN_CONTAINER=true
       - DB_SERVER=sqlserver
       - DB_NAME=UngDungXemPhim_v2
       - DB_USER=sa
-      - DB_TRUST_CERTIFICATE=False
+      - DB_TRUST_CERTIFICATE=True  # ⚠️ Local Production: Trust self-signed cert (đặt False khi có real SSL cert)
+      # Password được đọc từ Docker Secret trong Program.cs
       - API_PORT=5016
       - API_HOST=0.0.0.0
-    secrets:
-      - db_password
-      - api_secrets
+      - ASSET_BASE_URL=https://yourdomain.com/Assets  # Thay bằng domain thật
+      - LOG_LEVEL=Warning  # Production: Chỉ log warning và error
     configs:
       - source: app_config
         target: /app/configs/app.conf
-    # Production tuning
+    volumes:
+      - ./Backend/Asset:/app/Asset
+      # Mount file password để Program.cs đọc được
+      - ./secrets/db_password.txt:/secrets/db_password:ro
+    ports:
+      - "5016:5016"
     deploy:
       resources:
         limits:
@@ -52,6 +62,33 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 3
+    depends_on:
+      - sqlserver
+    networks:
+      - ungdungxemphim-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./Fontend/UngDungXemPhimApp
+      dockerfile: Dockerfile
+    container_name: ungdungxemphim-frontend
+    working_dir: /app
+    command: npm start
+    environment:
+      - EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL}
+      - EXPO_PUBLIC_ASSET_URL=${EXPO_PUBLIC_ASSET_URL}
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+    volumes:
+      - ./Fontend/UngDungXemPhimApp:/app
+    depends_on:
+      - backend
+    networks:
+      - ungdungxemphim-network
+    restart: unless-stopped
 
 secrets:
   db_password:
@@ -62,3 +99,12 @@ secrets:
 configs:
   app_config:
     file: ./configs/app.conf
+
+networks:
+  ungdungxemphim-network:
+    driver: bridge
+
+# PRODUCTION - Volume riêng cho database production
+volumes:
+  sqlserver-dataprod:
+    name: ungdungxemphim_sqlserver-dataprod

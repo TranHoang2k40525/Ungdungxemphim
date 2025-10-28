@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # SQL Server Database
   sqlserver:
@@ -7,7 +5,7 @@ services:
     container_name: ungdungxemphim-sqlserver
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=${DB_PASSWORD:-YourStrong@Password123}
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD}
     ports:
       - "1433:1433"
     volumes:
@@ -23,14 +21,14 @@ services:
       dockerfile: Dockerfile
     container_name: ungdungxemphim-backend
     environment:
-      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
-      - DB_SERVER=${DB_SERVER:-sqlserver}
-      - DB_NAME=${DB_NAME:-UngDungXemPhim_v2}
-      - DB_USER=${DB_USER:-sa}
-      - DB_PASSWORD=${DB_PASSWORD:-YourStrong@Password123}
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+      - DB_SERVER=${DB_SERVER}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
       - DB_TRUST_CERTIFICATE=${DB_TRUST_CERTIFICATE:-True}
-      - API_PORT=${API_PORT:-5016}
-      - API_HOST=${API_HOST:-0.0.0.0}
+      - API_PORT=${API_PORT}
+      - API_HOST=${API_HOST}
       - ASSET_BASE_URL=${ASSET_BASE_URL}
     ports:
       - "${API_PORT:-5016}:${API_PORT:-5016}"
@@ -38,6 +36,29 @@ services:
       - ./Backend/Asset:/app/Asset
     depends_on:
       - sqlserver
+    networks:
+      - ungdungxemphim-network
+    restart: unless-stopped
+
+  # Frontend Expo/React Native
+  frontend:
+    build:
+      context: ./Fontend/UngDungXemPhimApp
+      dockerfile: Dockerfile
+    container_name: ungdungxemphim-frontend
+    working_dir: /app
+    command: npm start
+    environment:
+      - EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL}
+      - EXPO_PUBLIC_ASSET_URL=${EXPO_PUBLIC_ASSET_URL}
+    ports:
+      - "19000:19000"   # Expo Go
+      - "19001:19001"   # Expo web
+      - "19002:19002"   # Expo devtools
+    volumes:
+      - ./Fontend/UngDungXemPhimApp:/app
+    depends_on:
+      - backend
     networks:
       - ungdungxemphim-network
     restart: unless-stopped

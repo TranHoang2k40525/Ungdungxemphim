@@ -1,4 +1,3 @@
-// src/api/API.js - Simplified (No Auth, No Comments, No Ratings)
 import axios from "axios";
 import getEnvVars from "../config/env";
 
