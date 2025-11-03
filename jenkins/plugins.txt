@@ -1,0 +1,36 @@
+# Jenkins Essential Plugins
+# Plugins sẽ được tự động cài đặt khi Jenkins khởi động
+
+# Core plugins
+workflow-aggregator:latest
+git:latest
+github:latest
+credentials:latest
+credentials-binding:latest
+
+# Docker plugins
+docker-workflow:latest
+docker-plugin:latest
+
+# Pipeline plugins
+pipeline-stage-view:latest
+pipeline-graph-analysis:latest
+pipeline-build-step:latest
+
+# Build & Test
+junit:latest
+xunit:latest
+htmlpublisher:latest
+
+# Configuration as Code
+configuration-as-code:latest
+
+# Notifications
+mailer:latest
+slack:latest
+
+# Additional tools
+ssh-agent:latest
+timestamper:latest
+ws-cleanup:latest
+ansicolor:latest

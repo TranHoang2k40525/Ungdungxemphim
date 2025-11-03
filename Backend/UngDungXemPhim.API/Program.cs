@@ -36,17 +36,31 @@ var dbServer = Environment.GetEnvironmentVariable("DB_SERVER");
 var dbName = Environment.GetEnvironmentVariable("DB_NAME");
 var dbUser = Environment.GetEnvironmentVariable("DB_USER");
 
-// GIẢI PHÁP 2: Đọc password từ file secret nếu có, không thì từ env variable
+// Đọc password từ Docker Compose secrets, file mount, hoặc environment variable
 var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD");
-var dbPasswordSecretPath = "/secrets/db_password";
-if (File.Exists(dbPasswordSecretPath))
+
+// Docker Compose secrets được mount tại /run/secrets/ (chuẩn Docker Compose)
+var dockerSecretPath = "/run/secrets/db_password";
+// Fallback: Custom mount path (cho backward compatibility)
+var customSecretPath = "/secrets/db_password";
+
+if (File.Exists(dockerSecretPath))
 {
-    dbPassword = File.ReadAllText(dbPasswordSecretPath).Trim();
-    Console.WriteLine("✅ Đọc DB password từ file secret: /secrets/db_password");
+    dbPassword = File.ReadAllText(dockerSecretPath).Trim();
+    Console.WriteLine(" [PRODUCTION] Đọc DB password từ Docker Compose secret: /run/secrets/db_password");
+}
+else if (File.Exists(customSecretPath))
+{
+    dbPassword = File.ReadAllText(customSecretPath).Trim();
+    Console.WriteLine(" [PRODUCTION] Đọc DB password từ custom secret path: /secrets/db_password");
 }
 else if (!string.IsNullOrEmpty(dbPassword))
 {
-    Console.WriteLine("⚠️ Đọc DB password từ environment variable (dev mode)");
+    Console.WriteLine("  [DEVELOPMENT] Đọc DB password từ environment variable");
+}
+else
+{
+    Console.WriteLine(" CẢNH BÁO: Không tìm thấy DB password! Kiểm tra secrets hoặc environment variables.");
 }
 
 var dbTrustCert = Environment.GetEnvironmentVariable("DB_TRUST_CERTIFICATE") ?? "True";
@@ -72,6 +86,9 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
         options.JsonSerializerOptions.AllowTrailingCommas = true;
         options.JsonSerializerOptions.ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip;
+        // Sửa lỗi encoding tiếng Việt - Không escape Unicode
+        options.JsonSerializerOptions.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+        options.JsonSerializerOptions.WriteIndented = false;
     });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -123,6 +140,31 @@ else
 {
     Console.WriteLine($"Warning: Asset directory not found at {assetPath}");
 }
+
+// Health check endpoint (cho Docker healthcheck)
+app.MapGet("/health", async (AppDbContext dbContext) =>
+{
+    try
+    {
+        // Kiểm tra kết nối database
+        await dbContext.Database.CanConnectAsync();
+        return Results.Ok(new 
+        { 
+            status = "healthy", 
+            timestamp = DateTime.UtcNow,
+            environment = app.Environment.EnvironmentName,
+            database = "connected"
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: 503,
+            title: "Service Unavailable"
+        );
+    }
+});
 
 app.MapControllers();
 

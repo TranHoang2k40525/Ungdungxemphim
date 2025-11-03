@@ -6,11 +6,11 @@ services:
     # PRODUCTION - Dùng volume RIÊNG: ungdungxemphim_sqlserver-dataprod
     volumes:
       - sqlserver-dataprod:/var/opt/mssql
-      # Mount file password từ host vào container
-      - ./secrets/db_password.txt:/secrets/db_password:ro
     environment:
-      # SQL Server đọc password từ file /secrets/db_password
-      - MSSQL_SA_PASSWORD_FILE=/secrets/db_password
+      # SQL Server đọc password từ Docker Compose secret (mount tại /run/secrets/)
+      - MSSQL_SA_PASSWORD_FILE=/run/secrets/db_password
+    secrets:
+      - db_password
     deploy:
       resources:
         limits:
@@ -35,19 +35,19 @@ services:
       - DB_SERVER=sqlserver
       - DB_NAME=UngDungXemPhim_v2
       - DB_USER=sa
-      - DB_TRUST_CERTIFICATE=True  # ⚠️ Local Production: Trust self-signed cert (đặt False khi có real SSL cert)
-      # Password được đọc từ Docker Secret trong Program.cs
+      - DB_TRUST_CERTIFICATE=True  
       - API_PORT=5016
       - API_HOST=0.0.0.0
-      - ASSET_BASE_URL=https://yourdomain.com/Assets  # Thay bằng domain thật
-      - LOG_LEVEL=Warning  # Production: Chỉ log warning và error
+      - ASSET_BASE_URL=https://yourdomain.com/Assets  
+      - LOG_LEVEL=Warning  
+    secrets:
+      - db_password
+      - api_secrets
     configs:
       - source: app_config
         target: /app/configs/app.conf
     volumes:
       - ./Backend/Asset:/app/Asset
-      # Mount file password để Program.cs đọc được
-      - ./secrets/db_password.txt:/secrets/db_password:ro
     ports:
       - "5016:5016"
     deploy:
@@ -104,7 +104,7 @@ networks:
   ungdungxemphim-network:
     driver: bridge
 
-# PRODUCTION - Volume riêng cho database production
+
 volumes:
   sqlserver-dataprod:
     name: ungdungxemphim_sqlserver-dataprod

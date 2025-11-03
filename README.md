@@ -1,169 +1,174 @@
-# 🎬 ỨNG DỤNG XEM PHIM
+# ỨNG DỤNG XEM PHIM - HƯỚNG DẪN CHẠY
 
-## 📖 TÀI LIỆU HƯỚNG DẪN
-
-Dự án đã được thiết lập với môi trường Dev/Prod tách biệt hoàn chỉnh.
-
-### 📚 Các File Hướng Dẫn:
-
-1. **HUONG_DAN_CHAY.md** - Hướng dẫn chi tiết đầy đủ
-2. **ENVIRONMENT_SETUP.md** - Tài liệu về môi trường và cấu hình
-3. **QUICK_START.md** - Tóm tắt nhanh các bước
-
-### 🚀 CÁCH CHẠY NHANH NHẤT
-
-#### Bước 1: Mở Docker Desktop
+## 📁 Cấu trúc dự án
 ```
-Đảm bảo Docker Desktop đang chạy!
+├── Backend/
+│   ├── UngDungXemPhim.API/      # .NET 8 Web API
+│   ├── Asset/                    # Static files (posters, videos)
+│   └── Sql Server/              # SQL scripts
+├── Fontend/
+│   └── UngDungXemPhimApp/       # React Native (Expo)
+├── docker-compose.yml           # Base compose config
+├── docker-compose.override.yml  # Dev overrides
+├── docker-compose.prod.yml      # Production config
+├── .env.development             # Dev environment variables
+└── start-dev.ps1                # Script tự động chạy dev
 ```
 
-#### Bước 2: Chạy Development
+## 🚀 Cách chạy nhanh nhất (Development)
+
+### Lần đầu tiên chạy:
 ```powershell
-docker compose up
+# Mở PowerShell tại thư mục dự án, chạy:
+.\start-dev.ps1
 ```
+Script sẽ tự động:
+1. ✅ Kiểm tra Docker
+2. ✅ Khởi động SQL Server
+3. ✅ Khởi tạo database (16 phim, 8 thể loại)
+4. ✅ Chạy backend API
 
-#### Bước 3: Mở trình duyệt
-```
-http://localhost:5016/swagger
-```
+⏱️ **Thời gian:** ~2-3 phút lần đầu
 
-### 📂 Cấu Trúc Dự Án
-
-```
-Ungdungxemphim/
-├── Backend/                 # .NET 8 API
-│   └── UngDungXemPhim.API/
-├── Fontend/                 # React Native/Expo
-│   └── UngDungXemPhimApp/
-├── docker-compose.yml       # Docker config chính
-├── docker-compose.override.yml  # Config Development (auto-load)
-├── docker-compose.prod.yml  # Config Production
-├── .env.development         # Biến môi trường Dev
-├── .env.production          # Biến môi trường Prod
-├── secrets/                 # Thông tin nhạy cảm (không commit)
-└── configs/                 # Cấu hình không nhạy cảm
-```
-
-### 🔑 Scripts Hỗ Trợ
-
+### Lần sau (đã có database và images):
 ```powershell
-# Hướng dẫn nhanh
-.\start.ps1
-
-# Setup Development
-.\setup-dev.ps1
-
-# Setup Production  
-.\setup-prod.ps1
-
-# Kiểm tra cấu hình
-.\check-env.ps1
-
-# Demo Development (có hướng dẫn từng bước)
-.\demo-dev.ps1
-
-# Demo Production (có hướng dẫn từng bước)
-.\demo-prod.ps1
+# Khởi động nhanh (KHÔNG cần build lại)
+.\start-dev-quick.ps1
+# hoặc:
+docker compose up -d
 ```
 
-### 🌐 Endpoints (Development)
+⏱️ **Thời gian:** ~10 giây (nhanh gấp 10-20 lần!)
 
-- **API**: http://localhost:5016
-- **Swagger UI**: http://localhost:5016/swagger
-- **SQL Server**: localhost:1433
-- **Assets**: http://localhost:5016/Assets
-
-### 💡 Các Lệnh Thường Dùng
-
+### Khi nghỉ / tắt máy:
 ```powershell
-# Development
-docker compose up              # Khởi động
-docker compose up -d           # Chạy background
-docker compose down            # Dừng
-docker compose logs -f         # Xem logs
-docker compose ps              # Xem status
-
-# Production
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
-docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+# Dừng containers NHƯNG GIỮ LẠI database và images
+.\stop-dev-keep-data.ps1
+# hoặc:
+docker compose stop
 ```
 
-### 📱 Frontend (React Native/Expo)
+**📖 Xem chi tiết:** [QUAN_LY_DEV_ENVIRONMENT.md](./QUAN_LY_DEV_ENVIRONMENT.md)
 
+### Chạy thủ công từng bước:
+Xem hướng dẫn chi tiết trong file: **[HUONG_DAN_CHAY_DEV.md](./HUONG_DAN_CHAY_DEV.md)**
+
+## 🧪 Test API sau khi chạy
+
+### Cách 1: Dùng script test
 ```powershell
-cd Fontend\UngDungXemPhimApp
+.\test-api.ps1
+```
+
+### Cách 2: Mở Swagger UI
+```
+http://localhost:5016/swagger/index.html
+```
+
+### Cách 3: Test bằng PowerShell
+```powershell
+# Lấy danh sách genres
+Invoke-RestMethod -Uri "http://localhost:5016/api/Genres"
+
+# Lấy danh sách movies
+Invoke-RestMethod -Uri "http://localhost:5016/api/Movies"
+```
+
+## 📱 Chạy Frontend App (sau khi backend OK)
+
+### Chạy bằng Docker:
+```powershell
+docker compose up frontend
+```
+Sau đó mở: http://localhost:19000
+
+### Chạy local (không Docker):
+```powershell
+cd Fontend\UngdungXemPhimApp
 npm install
 npm start
 ```
 
-### 🔧 Backend (Chạy trực tiếp)
+## 🔧 Lệnh Docker Compose hữu ích
 
 ```powershell
-cd Backend\UngDungXemPhim.API
-dotnet run
-# Hoặc
-dotnet watch run  # Với hot reload
-```
+# Xem logs
+docker compose logs -f backend
+docker compose logs -f sqlserver
 
-### 🛡️ Bảo Mật
+# Restart service
+docker compose restart backend
 
-- ✅ File `.env` không được commit (đã có trong .gitignore)
-- ✅ Secrets được quản lý trong thư mục `secrets/`
-- ✅ Có file `.example` để tham khảo
-- ✅ Production sử dụng Docker secrets
+# Dừng tất cả
+docker compose down
 
-### 📊 Kiểm Tra Hệ Thống
-
-```powershell
-# Kiểm tra Docker
-docker --version
-docker compose version
-docker ps
-
-# Kiểm tra .NET
-dotnet --version
-dotnet --list-sdks
-
-# Kiểm tra Node.js
-node --version
-npm --version
-
-# Kiểm tra môi trường project
-.\check-env.ps1
-```
-
-### 🆘 Troubleshooting
-
-#### Vấn đề: Docker Desktop không chạy
-```powershell
-# Mở Docker Desktop
-# Đợi Docker khởi động xong (icon màu xanh)
-# Chạy lại: docker compose up
-```
-
-#### Vấn đề: Port 5016 đã được sử dụng
-```powershell
-# Tìm process
-netstat -ano | findstr :5016
-
-# Kill process
-taskkill /PID <PID> /F
-```
-
-#### Vấn đề: Database lỗi
-```powershell
-# Xóa và tạo lại
+# Dừng và xóa data (reset database)
 docker compose down -v
-docker compose up
+
+# Rebuild image
+docker compose build backend --no-cache
 ```
 
-### 📖 Đọc Thêm
+## 🌐 Các URL quan trọng
 
-Xem **HUONG_DAN_CHAY.md** để biết hướng dẫn chi tiết!
+| Service | URL | Ghi chú |
+|---------|-----|---------|
+| Backend API | http://localhost:5016 | REST API |
+| Swagger UI | http://localhost:5016/swagger | Chỉ có trong Dev |
+| SQL Server | localhost,1433 | sa/YourStrong@Password123 |
+| Assets | http://localhost:5016/Assets | Static files |
+| Expo DevTools | http://localhost:19000 | Khi chạy frontend |
+
+## ⚙️ Cấu hình môi trường
+
+File `.env.development` chứa các biến quan trọng:
+- `DB_SERVER=sqlserver` - Tên service SQL Server
+- `DB_PASSWORD=YourStrong@Password123` - Password SA (phải mạnh!)
+- `API_PORT=5016` - Port backend
+- `EXPO_PUBLIC_API_URL` - URL API cho frontend
+
+## 🚨 Xử lý lỗi thường gặp
+
+### SQL Server không khởi động
+```powershell
+# Xem logs để biết lỗi
+docker compose logs sqlserver
+
+# Thường do password yếu hoặc thiếu RAM
+# Giải pháp: Dùng password mạnh + cấp >= 4GB RAM cho Docker
+```
+
+### Backend không kết nối database
+```powershell
+# Kiểm tra SQL Server chạy chưa
+docker compose ps
+
+# Đợi thêm 20 giây rồi restart backend
+docker compose restart backend
+```
+
+### Port bị chiếm (1433 hoặc 5016)
+```powershell
+# Kiểm tra process nào đang dùng
+netstat -ano | findstr :5016
+netstat -ano | findstr :1433
+
+# Tắt process đó hoặc đổi port trong .env.development
+```
+
+## 📚 Tài liệu chi tiết
+
+- **[HUONG_DAN_CHAY_DEV.md](./HUONG_DAN_CHAY_DEV.md)** - Hướng dẫn từng bước chi tiết
+- **Backend API:** .NET 8 + Entity Framework Core + SQL Server
+- **Frontend:** React Native (Expo) + React Navigation
+
+## 📞 Liên hệ / Báo lỗi
+
+Nếu gặp lỗi, hãy:
+1. Xem logs: `docker compose logs -f`
+2. Kiểm tra file `.env.development`
+3. Đọc phần "Xử lý lỗi" trong `HUONG_DAN_CHAY_DEV.md`
 
 ---
 
-**Tạo bởi:** GitHub Copilot  
-**Ngày:** October 2025  
-**Version:** 1.0
+**Chúc bạn code vui vẻ! 🎬🚀**

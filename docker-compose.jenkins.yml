@@ -1,0 +1,37 @@
+# Docker Compose for Jenkins CI/CD
+# Usage: docker compose -f docker-compose.yml -f docker-compose.jenkins.yml up -d
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: ungdungxemphim-jenkins
+    privileged: true
+    user: root
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    ports:
+      - "8080:8080"     # Jenkins Web UI
+      - "50000:50000"   # Jenkins agent communication
+    volumes:
+      - jenkins-data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket để build images
+      - ./jenkins/casc.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro
+      - ./jenkins/plugins.txt:/usr/share/jenkins/ref/plugins.txt:ro
+    networks:
+      - ungdungxemphim-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+volumes:
+  jenkins-data:
+    name: ungdungxemphim_jenkins-data
+
+networks:
+  ungdungxemphim-network:
+    external: true

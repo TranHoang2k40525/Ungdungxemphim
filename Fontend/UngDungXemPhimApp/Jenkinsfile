@@ -1,0 +1,239 @@
+// Jenkins Pipeline for Frontend (React Native/Expo)
+// CI/CD Pipeline: Install → Lint → Build → Docker Build → Deploy
+
+pipeline {
+    agent any
+    
+    environment {
+        // Docker Registry
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_IMAGE = 'ungdungxemphim/frontend'
+        DOCKER_CREDENTIALS_ID = 'docker-hub-token'
+        
+        // Node.js Configuration
+        NODE_VERSION = '20'
+        
+        // Version from Git
+        GIT_COMMIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+        BUILD_VERSION = "${env.BRANCH_NAME}-${GIT_COMMIT_SHORT}-${env.BUILD_NUMBER}"
+    }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
+        timeout(time: 45, unit: 'MINUTES')
+        ansiColor('xterm')
+    }
+    
+    tools {
+        nodejs "NodeJS ${NODE_VERSION}"
+    }
+    
+    stages {
+        stage('📋 Checkout') {
+            steps {
+                echo "🔍 Checking out branch: ${env.BRANCH_NAME}"
+                checkout scm
+            }
+        }
+        
+        stage('📦 Install Dependencies') {
+            steps {
+                dir('Fontend/UngDungXemPhimApp') {
+                    echo "📦 Installing npm packages..."
+                    sh '''
+                        node --version
+                        npm --version
+                        npm ci --prefer-offline --no-audit
+                    '''
+                }
+            }
+        }
+        
+        stage('🧹 Lint') {
+            steps {
+                dir('Fontend/UngDungXemPhimApp') {
+                    echo "🧹 Running ESLint..."
+                    sh 'npm run lint || true'
+                }
+            }
+        }
+        
+        stage('🧪 Test') {
+            steps {
+                dir('Fontend/UngDungXemPhimApp') {
+                    script {
+                        def hasTests = fileExists('__tests__') || fileExists('src/__tests__')
+                        
+                        if (hasTests) {
+                            echo "🧪 Running tests..."
+                            sh 'npm test -- --ci --coverage --watchAll=false || true'
+                        } else {
+                            echo "⚠️ No tests found, skipping test stage"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('🏗️ Build Expo Web') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                dir('Fontend/UngDungXemPhimApp') {
+                    echo "🏗️ Building Expo web bundle..."
+                    sh '''
+                        npx expo export --platform web --output-dir web-build
+                    '''
+                }
+            }
+            post {
+                success {
+                    archiveArtifacts artifacts: 'Fontend/UngDungXemPhimApp/web-build/**/*', fingerprint: true
+                }
+            }
+        }
+        
+        stage('📱 Build APK (Android)') {
+            when {
+                branch 'main'
+            }
+            steps {
+                dir('Fontend/UngDungXemPhimApp') {
+                    echo "📱 Building Android APK with EAS..."
+                    script {
+                        def hasEAS = fileExists('eas.json')
+                        
+                        if (hasEAS) {
+                            sh '''
+                                # Cần EXPO_TOKEN trong Jenkins credentials
+                                # npx eas-cli build --platform android --profile production --non-interactive
+                                echo "⚠️ EAS Build requires EXPO_TOKEN - configure in Jenkins credentials"
+                            '''
+                        } else {
+                            echo "⚠️ eas.json not found, skipping EAS build"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('🐳 Docker Build') {
+            steps {
+                dir('Fontend/UngDungXemPhimApp') {
+                    script {
+                        echo "🐳 Building Docker image: ${DOCKER_IMAGE}:${BUILD_VERSION}"
+                        docker.build(
+                            "${DOCKER_IMAGE}:${BUILD_VERSION}",
+                            "-f Dockerfile ."
+                        )
+                        
+                        // Tag as latest for main branch
+                        if (env.BRANCH_NAME == 'main') {
+                            sh "docker tag ${DOCKER_IMAGE}:${BUILD_VERSION} ${DOCKER_IMAGE}:latest"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('📤 Push to Registry') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    echo "📤 Pushing image to Docker Hub..."
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", DOCKER_CREDENTIALS_ID) {
+                        docker.image("${DOCKER_IMAGE}:${BUILD_VERSION}").push()
+                        
+                        if (env.BRANCH_NAME == 'main') {
+                            docker.image("${DOCKER_IMAGE}:latest").push()
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('🚀 Deploy to Dev') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                echo "🚀 Deploying frontend to Development..."
+                sh """
+                    docker compose -f docker-compose.yml up -d frontend
+                """
+            }
+        }
+        
+        stage('🚀 Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                input message: '🚨 Deploy Frontend to Production?', ok: 'Deploy'
+                
+                echo "🚀 Deploying frontend to Production..."
+                sh """
+                    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d frontend
+                """
+            }
+        }
+        
+        stage('✅ Health Check') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    echo "🏥 Checking Metro Bundler health..."
+                    sleep(time: 15, unit: 'SECONDS')
+                    
+                    def response = sh(
+                        returnStatus: true,
+                        script: 'curl -f http://localhost:8081 || curl -f http://frontend:8081'
+                    )
+                    
+                    if (response != 0) {
+                        echo "⚠️ Metro Bundler might still be starting..."
+                    } else {
+                        echo "✅ Metro Bundler is running!"
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "✅ Frontend pipeline completed successfully!"
+            // slackSend(color: 'good', message: "✅ Frontend build #${env.BUILD_NUMBER} succeeded")
+        }
+        failure {
+            echo "❌ Frontend pipeline failed!"
+            // slackSend(color: 'danger', message: "❌ Frontend build #${env.BUILD_NUMBER} failed")
+        }
+        always {
+            echo "🧹 Cleaning up..."
+            cleanWs(
+                deleteDirs: true,
+                patterns: [
+                    [pattern: '**/node_modules/**', type: 'INCLUDE'],
+                    [pattern: '**/web-build/**', type: 'INCLUDE'],
+                    [pattern: '**/.expo/**', type: 'INCLUDE']
+                ]
+            )
+        }
+    }
+}

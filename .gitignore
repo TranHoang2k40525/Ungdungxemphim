@@ -6,7 +6,9 @@ node_modules/
 
 # Bỏ qua các file log và hệ thống
 *.log
-
+bridge/
+Configs/
+secrets/
 # Environment Variables (IMPORTANT!)
 .env
 .env.local

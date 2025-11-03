@@ -47,11 +47,12 @@ services:
       dockerfile: Dockerfile
     container_name: ungdungxemphim-frontend
     working_dir: /app
-    command: npm start
+    command: npx expo start --host 0.0.0.0
     environment:
       - EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL}
       - EXPO_PUBLIC_ASSET_URL=${EXPO_PUBLIC_ASSET_URL}
     ports:
+      - "8081:8081"     # Metro Bundler (Web browser)
       - "19000:19000"   # Expo Go
       - "19001:19001"   # Expo web
       - "19002:19002"   # Expo devtools

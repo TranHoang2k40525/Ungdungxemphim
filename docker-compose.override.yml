@@ -54,7 +54,7 @@ services:
       - "8081:8081"    # Metro Bundler
     volumes:
       - ./Fontend/UngDungXemPhimApp:/app
-      - /app/node_modules  # Không ghi đè node_modules từ image
+      - /app/node_modules  
     depends_on:
       - backend
     networks:

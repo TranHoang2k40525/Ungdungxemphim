@@ -23,8 +23,8 @@ const { width } = Dimensions.get('window');
 // Thêm "Tất cả" vào danh sách categories, mặc định là "all"
 const categories = [
   { label: "Tất cả", value: "all" },
-  { label: "Thể Loại", value: "genres" },
-  { label: "Phim bộ", value: "series" },
+  { label: "Thể Loại 123", value: "genres" },
+  { label: "Phim bộ ", value: "series" },
   { label: "Phim lẻ", value: "single" },
 ];
 

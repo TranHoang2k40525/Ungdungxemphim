@@ -1,0 +1,217 @@
+// Jenkins Pipeline for Backend (.NET 8 Web API)
+// CI/CD Pipeline: Build → Test → Docker Build → Deploy
+
+pipeline {
+    agent any
+    
+    environment {
+        // Docker Registry
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_IMAGE = 'ungdungxemphim/backend'
+        DOCKER_CREDENTIALS_ID = 'docker-hub-token'
+        
+        // .NET Configuration
+        DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+        DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
+        
+        // Build Configuration
+        BUILD_CONFIGURATION = "${env.BRANCH_NAME == 'main' ? 'Release' : 'Debug'}"
+        DOCKERFILE = "${env.BRANCH_NAME == 'main' ? 'Dockerfile.prod' : 'Dockerfile'}"
+        
+        // Version from Git
+        GIT_COMMIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+        BUILD_VERSION = "${env.BRANCH_NAME}-${GIT_COMMIT_SHORT}-${env.BUILD_NUMBER}"
+    }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        ansiColor('xterm')
+    }
+    
+    stages {
+        stage('📋 Checkout') {
+            steps {
+                echo " Checking out branch: ${env.BRANCH_NAME}"
+                checkout scm
+            }
+        }
+        
+        stage('🔧 Restore Dependencies') {
+            steps {
+                dir('Backend/UngDungXemPhim.API') {
+                    echo " Restoring NuGet packages..."
+                    sh 'dotnet restore'
+                }
+            }
+        }
+        
+        stage(' Build') {
+            steps {
+                dir('Backend/UngDungXemPhim.API') {
+                    echo " Building with configuration: ${BUILD_CONFIGURATION}"
+                    sh "dotnet build --configuration ${BUILD_CONFIGURATION} --no-restore"
+                }
+            }
+        }
+        
+        stage(' Test') {
+            steps {
+                script {
+                    def testProjects = sh(
+                        returnStdout: true, 
+                        script: 'find Backend -name "*Tests.csproj" -o -name "*Test.csproj"'
+                    ).trim()
+                    
+                    if (testProjects) {
+                        echo " Running tests..."
+                        sh """
+                            dotnet test Backend/*.sln \
+                                --configuration ${BUILD_CONFIGURATION} \
+                                --no-build \
+                                --logger 'trx;LogFileName=test-results.trx' \
+                                --collect:"XPlat Code Coverage"
+                        """
+                    } else {
+                        echo " No test projects found, skipping tests"
+                    }
+                }
+            }
+            post {
+                always {
+                    script {
+                        if (fileExists('**/test-results.trx')) {
+                            xunit([MSTest(pattern: '**/test-results.trx')])
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage(' Code Analysis') {
+            when {
+                branch 'main'
+            }
+            steps {
+                dir('Backend/UngDungXemPhim.API') {
+                    echo " Running code analysis..."
+                    sh 'dotnet format --verify-no-changes --verbosity diagnostic || true'
+                }
+            }
+        }
+        
+        stage(' Docker Build') {
+            steps {
+                dir('Backend/UngDungXemPhim.API') {
+                    script {
+                        echo " Building Docker image: ${DOCKER_IMAGE}:${BUILD_VERSION}"
+                        docker.build(
+                            "${DOCKER_IMAGE}:${BUILD_VERSION}",
+                            "--build-arg BUILD_CONFIGURATION=${BUILD_CONFIGURATION} -f ${DOCKERFILE} ."
+                        )
+                        
+                        // Tag as latest for main branch
+                        if (env.BRANCH_NAME == 'main') {
+                            sh "docker tag ${DOCKER_IMAGE}:${BUILD_VERSION} ${DOCKER_IMAGE}:latest"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage(' Push to Registry') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    echo " Pushing image to Docker Hub..."
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", DOCKER_CREDENTIALS_ID) {
+                        docker.image("${DOCKER_IMAGE}:${BUILD_VERSION}").push()
+                        
+                        if (env.BRANCH_NAME == 'main') {
+                            docker.image("${DOCKER_IMAGE}:latest").push()
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage(' Deploy to Dev') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                echo " Deploying to Development environment..."
+                sh """
+                    docker compose -f docker-compose.yml up -d backend
+                """
+            }
+        }
+        
+        stage(' Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                input message: ' Deploy to Production?', ok: 'Deploy'
+                
+                echo " Deploying to Production environment..."
+                sh """
+                    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d backend
+                """
+            }
+        }
+        
+        stage(' Health Check') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    echo " Checking backend health..."
+                    sleep(time: 10, unit: 'SECONDS')
+                    
+                    def response = sh(
+                        returnStatus: true,
+                        script: 'curl -f http://localhost:5016/health || curl -f http://backend:5016/health'
+                    )
+                    
+                    if (response != 0) {
+                        error(" Health check failed!")
+                    }
+                    echo " Backend is healthy!"
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo " Pipeline completed successfully!"
+            // Slack notification (nếu đã cấu hình)
+            // slackSend(color: 'good', message: " Backend build #${env.BUILD_NUMBER} succeeded")
+        }
+        failure {
+            echo " Pipeline failed!"
+            // slackSend(color: 'danger', message: " Backend build #${env.BUILD_NUMBER} failed")
+        }
+        always {
+            echo " Cleaning up..."
+            cleanWs(
+                deleteDirs: true,
+                patterns: [
+                    [pattern: '**/bin/**', type: 'INCLUDE'],
+                    [pattern: '**/obj/**', type: 'INCLUDE']
+                ]
+            )
+        }
+    }
+}

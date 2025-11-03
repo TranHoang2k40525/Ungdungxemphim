@@ -1,0 +1,79 @@
+# Jenkins Configuration as Code (JCasC)
+# Tự động cấu hình Jenkins khi khởi động
+
+jenkins:
+  systemMessage: "Jenkins CI/CD Server - Ứng Dụng Xem Phim"
+  numExecutors: 2
+  mode: NORMAL
+  
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "${JENKINS_ADMIN_PASSWORD:-admin123}"
+          
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Overall/Administer:admin"
+        - "Overall/Read:authenticated"
+
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: false
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "github-credentials"
+              username: "${GITHUB_USERNAME}"
+              password: "${GITHUB_TOKEN}"
+              description: "GitHub credentials for repository access"
+          - string:
+              scope: GLOBAL
+              id: "docker-hub-token"
+              secret: "${DOCKER_HUB_TOKEN}"
+              description: "Docker Hub access token"
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+    adminAddress: "admin@ungdungxemphim.local"
+    
+  slackNotifier:
+    teamDomain: "${SLACK_TEAM_DOMAIN}"
+    tokenCredentialId: "slack-token"
+
+jobs:
+  - script: >
+      multibranchPipelineJob('ungdungxemphim-backend') {
+        branchSources {
+          git {
+            remote('https://github.com/TranHoang2k40525/Ungdungxemphim.git')
+            credentialsId('github-credentials')
+          }
+        }
+        factory {
+          workflowBranchProjectFactory {
+            scriptPath('Backend/UngDungXemPhim.API/Jenkinsfile')
+          }
+        }
+      }
+  - script: >
+      multibranchPipelineJob('ungdungxemphim-frontend') {
+        branchSources {
+          git {
+            remote('https://github.com/TranHoang2k40525/Ungdungxemphim.git')
+            credentialsId('github-credentials')
+          }
+        }
+        factory {
+          workflowBranchProjectFactory {
+            scriptPath('Fontend/UngDungXemPhimApp/Jenkinsfile')
+          }
+        }
+      }
